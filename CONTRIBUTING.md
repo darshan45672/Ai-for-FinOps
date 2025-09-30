@@ -13,7 +13,6 @@ Thank you for your interest in contributing to AI for FinOps! We welcome contrib
 - [Pull Request Process](#pull-request-process)
 - [Testing Guidelines](#testing-guidelines)
 - [Documentation](#documentation)
-- [Community](#community)
 
 ## 🤝 Code of Conduct
 
