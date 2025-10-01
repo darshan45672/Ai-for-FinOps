@@ -1,0 +1,55 @@
+# Environment files
+.env
+.env.local
+.env*.local
+.env.production
+
+# Database backups
+backups/
+*.sql
+*.dump
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+
+# Certificates and keys
+*.pem
+*.key
+*.crt
+*.p12
+
+# Docker/Podman volumes
+volumes/

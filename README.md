@@ -62,7 +62,33 @@ AI for FinOps/
 - npm or yarn
 - Git
 
-### Installation
+### Quick Start with Podman 🐳
+
+The easiest way to get started is using containers:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/darshan45672/Ai-for-FinOps.git
+cd Ai-for-FinOps
+
+# 2. Create environment file
+make env
+
+# 3. Build and start all services
+make up-build
+
+# 4. View logs
+make logs
+```
+
+**Access the application:**
+- Frontend: http://localhost:3003
+- Backend API: http://localhost:3000
+- Authentication: http://localhost:3001
+
+📚 **Full container documentation**: See [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)
+
+### Manual Installation
 
 1. **Clone the repository**
    ```bash
@@ -184,6 +210,24 @@ npm run start        # Start production server
 npm run test         # Run tests
 npm run lint         # Run ESLint
 ```
+
+### Container Management with Makefile
+
+Quick commands for Podman container management:
+
+```bash
+make help            # Show all available commands
+make up              # Start all services
+make down            # Stop all services
+make logs            # View logs from all services
+make ps              # List running containers
+make restart         # Restart all services
+make clean           # Remove stopped containers
+make backup-db       # Backup PostgreSQL database
+make status          # Show detailed status
+```
+
+📚 See [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) for complete documentation.
 
 ### Contributing
 
