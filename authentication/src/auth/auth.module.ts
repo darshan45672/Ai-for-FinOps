@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
+import { GithubStrategy } from './strategies/github.strategy';
 import { DatabaseClientModule } from '../database-client/database-client.module';
 
 @Module({
@@ -24,7 +25,7 @@ import { DatabaseClientModule } from '../database-client/database-client.module'
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtRefreshStrategy],
+  providers: [AuthService, JwtStrategy, JwtRefreshStrategy, GithubStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}

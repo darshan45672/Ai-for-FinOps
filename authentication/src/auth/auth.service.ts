@@ -192,4 +192,65 @@ export class AuthService {
       return null;
     }
   }
+
+  async validateOAuthUser(profile: {
+    githubId: string;
+    email: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    avatar?: string;
+  }) {
+    // Try to find user by GitHub ID first
+    let user = await this.databaseClient.findUserByGithubId(profile.githubId);
+
+    if (user) {
+      // Update last login time
+      user = await this.databaseClient.updateUser(user.id, {
+        lastLoginAt: new Date(),
+        avatar: profile.avatar || user.avatar,
+      });
+    } else {
+      // Check if a user with this email already exists
+      try {
+        const existingUser = await this.databaseClient.findUserByEmail(profile.email);
+        
+        if (existingUser) {
+          // Link GitHub account to existing user
+          user = await this.databaseClient.updateUser(existingUser.id, {
+            githubId: profile.githubId,
+            avatar: profile.avatar || existingUser.avatar,
+            lastLoginAt: new Date(),
+          });
+        }
+      } catch (error) {
+        // User with email doesn't exist, create new user
+        const newUser = await this.databaseClient.createUser({
+          email: profile.email,
+          githubId: profile.githubId,
+          username: profile.username,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          avatar: profile.avatar,
+          emailVerified: true, // GitHub emails are verified
+        });
+        user = { ...newUser, password: '' } as any;
+      }
+    }
+
+    if (!user) {
+      throw new UnauthorizedException('Failed to authenticate with GitHub');
+    }
+
+    // Generate tokens
+    const tokens = await this.generateTokens(user.id, user.email, user.role);
+
+    // Remove password from response if it exists
+    const { password, ...userWithoutPassword } = user as any;
+
+    return {
+      user: userWithoutPassword,
+      ...tokens,
+    };
+  }
 }

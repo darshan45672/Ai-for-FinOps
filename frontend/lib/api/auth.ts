@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import { AuthResponse, RegisterData, LoginData, User } from '@/types/auth';
+import { setCookie, getCookie, deleteCookie } from '@/lib/cookies';
 
 class AuthService {
   private api: AxiosInstance;
@@ -116,6 +117,39 @@ class AuthService {
   }
 
   /**
+   * Update user profile
+   */
+  async updateProfile(data: {
+    firstName?: string;
+    lastName?: string;
+    username?: string;
+    avatar?: string;
+  }): Promise<User> {
+    const user = this.getUser();
+    if (!user) {
+      throw new Error('No user found');
+    }
+
+    // Call database service directly to update user
+    const response = await axios.patch(
+      `http://localhost:3002/users/${user.id}`,
+      data,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.getAccessToken()}`,
+        },
+      }
+    );
+
+    // Update stored user data
+    const updatedUser = { ...user, ...response.data };
+    this.setUser(updatedUser);
+    
+    return updatedUser;
+  }
+
+  /**
    * Check if user is authenticated
    */
   isAuthenticated(): boolean {
@@ -124,19 +158,21 @@ class AuthService {
   }
 
   /**
-   * Get access token from localStorage
+   * Get access token from localStorage and cookies
    */
   getAccessToken(): string | null {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem('access_token');
+    // Try localStorage first (legacy), then cookies
+    return localStorage.getItem('accessToken') || getCookie('accessToken');
   }
 
   /**
-   * Get refresh token from localStorage
+   * Get refresh token from localStorage and cookies
    */
   getRefreshToken(): string | null {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem('refresh_token');
+    // Try localStorage first (legacy), then cookies
+    return localStorage.getItem('refreshToken') || getCookie('refreshToken');
   }
 
   /**
@@ -144,17 +180,34 @@ class AuthService {
    */
   getUser(): User | null {
     if (typeof window === 'undefined') return null;
-    const userData = localStorage.getItem('user_data');
+    const userData = localStorage.getItem('user');
     return userData ? JSON.parse(userData) : null;
   }
 
   /**
-   * Set tokens in localStorage
+   * Set tokens in both localStorage and cookies
    */
   private setTokens(accessToken: string, refreshToken: string): void {
     if (typeof window === 'undefined') return;
-    localStorage.setItem('access_token', accessToken);
-    localStorage.setItem('refresh_token', refreshToken);
+    
+    // Store in localStorage
+    localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('refreshToken', refreshToken);
+    
+    // Store in cookies for middleware access
+    // Access token expires in 15 minutes
+    setCookie('accessToken', accessToken, {
+      expires: 1/96, // 15 minutes in days (1/96 of a day)
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+    
+    // Refresh token expires in 7 days
+    setCookie('refreshToken', refreshToken, {
+      expires: 7,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
   }
 
   /**
@@ -162,17 +215,23 @@ class AuthService {
    */
   private setUser(user: User): void {
     if (typeof window === 'undefined') return;
-    localStorage.setItem('user_data', JSON.stringify(user));
+    localStorage.setItem('user', JSON.stringify(user));
   }
 
   /**
-   * Clear all auth data from localStorage
+   * Clear all auth data from localStorage and cookies
    */
   private clearTokens(): void {
     if (typeof window === 'undefined') return;
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user_data');
+    
+    // Clear localStorage
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    
+    // Clear cookies
+    deleteCookie('accessToken');
+    deleteCookie('refreshToken');
   }
 }
 
