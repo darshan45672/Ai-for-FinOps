@@ -19,7 +19,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { Loader2, User, Mail, Calendar, Shield, Github, ArrowLeft, Home, MessageSquare } from 'lucide-react';
+import { Loader2, User, Mail, Calendar, Shield, Github, ArrowLeft, Home } from 'lucide-react';
 
 export default function ProfilePage() {
   const { user, isLoading, isAuthenticated } = useAuth();
@@ -78,25 +78,13 @@ export default function ProfilePage() {
                   <BreadcrumbLink asChild>
                     <Link href="/" className="flex items-center gap-1.5">
                       <Home className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Home</span>
+                      <span>Home</span>
                     </Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
-                  <BreadcrumbLink asChild>
-                    <Link href="/" className="flex items-center gap-1.5">
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Chat</span>
-                    </Link>
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage className="flex items-center gap-1.5 font-medium">
-                    <User className="h-3.5 w-3.5" />
-                    Profile
-                  </BreadcrumbPage>
+                  <BreadcrumbPage>Profile</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
