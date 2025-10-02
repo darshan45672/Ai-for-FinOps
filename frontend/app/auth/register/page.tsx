@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 
 export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const { signUp } = useAuth()
   const router = useRouter()
 
@@ -20,6 +21,7 @@ export default function RegisterPage() {
     acceptTerms: boolean
   }) => {
     setIsLoading(true)
+    setError(null)
     
     try {
       await signUp({
@@ -30,9 +32,10 @@ export default function RegisterPage() {
       })
       
       router.push('/') // Redirect to chat interface after successful registration
-    } catch (error) {
+    } catch (error: any) {
       console.error("Registration error:", error)
-      alert("Registration failed. Please try again.")
+      const errorMessage = error?.response?.data?.message || error?.message || "Registration failed. Please try again."
+      setError(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -43,6 +46,11 @@ export default function RegisterPage() {
       title="Create your account"
       subtitle="Start your journey with FinOps AI"
     >
+      {error && (
+        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md text-destructive text-sm">
+          {error}
+        </div>
+      )}
       <RegisterForm 
         onSubmit={handleRegister}
         isLoading={isLoading}

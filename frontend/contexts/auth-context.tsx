@@ -1,14 +1,8 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-
-interface User {
-  id: string
-  email: string
-  firstName: string
-  lastName: string
-  avatar?: string
-}
+import { authService } from '@/lib/api/auth'
+import { User } from '@/types/auth'
 
 interface AuthState {
   user: User | null
@@ -23,6 +17,7 @@ interface AuthContextType extends AuthState {
     lastName: string
     email: string
     password: string
+    username?: string
   }) => Promise<void>
   signOut: () => Promise<void>
   forgotPassword: (email: string) => Promise<void>
@@ -42,22 +37,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isAuthenticated: false,
   })
 
-  // Check for existing session on mount
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // Check if user has a valid token in localStorage
-        const token = localStorage.getItem('auth_token')
-        const userData = localStorage.getItem('user_data')
+        const token = authService.getAccessToken()
+        const userData = authService.getUser()
         
         if (token && userData) {
-          // In a real app, you would validate the token with your backend
-          const user = JSON.parse(userData)
-          setState({
-            user,
-            isLoading: false,
-            isAuthenticated: true,
-          })
+          try {
+            const user = await authService.getProfile()
+            setState({
+              user,
+              isLoading: false,
+              isAuthenticated: true,
+            })
+          } catch (error) {
+            console.error('Token validation failed:', error)
+            setState({
+              user: null,
+              isLoading: false,
+              isAuthenticated: false,
+            })
+          }
         } else {
           setState({
             user: null,
@@ -82,28 +83,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setState(prev => ({ ...prev, isLoading: true }))
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Mock user data - in a real app, this would come from your API
-      const mockUser: User = {
-        id: '1',
-        email,
-        firstName: 'John',
-        lastName: 'Doe',
-        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
-      }
-      
-      // Store auth data
-      localStorage.setItem('auth_token', 'mock_jwt_token')
-      localStorage.setItem('user_data', JSON.stringify(mockUser))
+      const response = await authService.login({ email, password })
       
       setState({
-        user: mockUser,
+        user: response.user,
         isLoading: false,
         isAuthenticated: true,
       })
-      
     } catch (error) {
       setState(prev => ({ ...prev, isLoading: false }))
       throw error
@@ -115,30 +101,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     lastName: string
     email: string
     password: string
+    username?: string
   }) => {
     setState(prev => ({ ...prev, isLoading: true }))
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      const newUser: User = {
-        id: Date.now().toString(),
-        email: userData.email,
-        firstName: userData.firstName,
-        lastName: userData.lastName,
-      }
-      
-      // Store auth data
-      localStorage.setItem('auth_token', 'mock_jwt_token')
-      localStorage.setItem('user_data', JSON.stringify(newUser))
+      const response = await authService.register(userData)
       
       setState({
-        user: newUser,
+        user: response.user,
         isLoading: false,
         isAuthenticated: true,
       })
-      
     } catch (error) {
       setState(prev => ({ ...prev, isLoading: false }))
       throw error
@@ -149,16 +123,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setState(prev => ({ ...prev, isLoading: true }))
     
     try {
-      // Clear auth data
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('user_data')
+      await authService.logout()
       
       setState({
         user: null,
         isLoading: false,
         isAuthenticated: false,
       })
-      
     } catch (error) {
       console.error('Sign out error:', error)
       setState(prev => ({ ...prev, isLoading: false }))
@@ -166,7 +137,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const forgotPassword = async (email: string) => {
-    // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000))
     console.log('Password reset requested for:', email)
   }
@@ -177,17 +147,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setState(prev => ({ ...prev, isLoading: true }))
     
     try {
-      const updatedUser = { ...state.user, ...data }
-      
-      // Update stored data
-      localStorage.setItem('user_data', JSON.stringify(updatedUser))
+      const updatedUser = await authService.getProfile()
       
       setState(prev => ({
         ...prev,
         user: updatedUser,
         isLoading: false,
       }))
-      
     } catch (error) {
       setState(prev => ({ ...prev, isLoading: false }))
       throw error
@@ -218,13 +184,11 @@ export function useAuth() {
   return context
 }
 
-// Hook for protecting routes
 export function useRequireAuth() {
   const auth = useAuth()
   
   useEffect(() => {
     if (!auth.isLoading && !auth.isAuthenticated) {
-      // In a real app, you would redirect to sign in page
       window.location.href = '/auth/signin'
     }
   }, [auth.isLoading, auth.isAuthenticated])
