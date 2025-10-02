@@ -25,6 +25,9 @@ export class UsersService {
         username: data.username,
         firstName: data.firstName,
         lastName: data.lastName,
+        githubId: data.githubId,
+        avatar: data.avatar,
+        emailVerified: data.emailVerified,
         role: data.role || 'USER',
       },
     });
@@ -36,6 +39,18 @@ export class UsersService {
   async findUserByEmail(email: string) {
     const user = await this.prisma.user.findUnique({
       where: { email },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user;
+  }
+
+  async findUserByGithubId(githubId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { githubId },
     });
 
     if (!user) {
