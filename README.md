@@ -26,6 +26,72 @@ AI for FinOps is a revolutionary platform that transforms how businesses manage 
 - **⚡ Performance Optimized**: Built with modern technologies for optimal performance
 - **🐳 Containerized**: Podman/Docker support for easy deployment
 
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+ and npm
+- PostgreSQL (or use Neon serverless)
+- Podman/Docker (optional, for containerized deployment)
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/darshan45672/Ai-for-FinOps.git
+cd Ai-for-FinOps
+```
+
+### 2. Setup Database Service
+
+```bash
+cd database
+npm install
+cp .env.example .env
+# Edit .env with your Neon PostgreSQL connection string
+npm run prisma:migrate
+npm run start:dev
+```
+
+### 3. Setup Authentication Service
+
+```bash
+cd ../authentication
+npm install
+cp .env.example .env
+# Edit .env if needed
+npm run start:dev
+```
+
+### 4. Setup Frontend
+
+```bash
+cd ../frontend
+npm install
+cp .env.example .env.local
+# Edit .env.local if needed
+npm run dev
+```
+
+### 5. Access the Application
+
+- **Frontend**: http://localhost:3003
+- **Sign In**: http://localhost:3003/auth/signin
+- **Register**: http://localhost:3003/auth/register
+- **Auth API Docs**: http://localhost:3001/api/docs
+- **Database API Docs**: http://localhost:3002/api/docs
+
+### Alternative: Use Helper Scripts
+
+We've provided convenient scripts to start/stop all services:
+
+```bash
+# Start all services
+./start-services.sh
+
+# Stop all services
+./stop-services.sh
+```
+
 ## 🏗️ Microservices Architecture
 
 The platform follows a microservices architecture with four independent services:
