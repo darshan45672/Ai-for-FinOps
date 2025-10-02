@@ -5,6 +5,7 @@ export interface User {
   firstName?: string;
   lastName?: string;
   avatar?: string;
+  githubId?: string;
   role?: 'USER' | 'ADMIN' | 'MODERATOR';
   status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   createdAt?: string;

@@ -1,14 +1,25 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ChatMessage, type Message } from "./chat-message"
 import { ChatInput } from "./chat-input"
 import { Sidebar, type ChatHistory } from "./sidebar"
 import { ThemeToggle } from "../theme-toggle"
-import { Menu, MessageSquare, Sparkles } from "lucide-react"
+import { Menu, MessageSquare, Sparkles, User, Settings, LogOut } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface ChatInterfaceProps {
@@ -22,6 +33,8 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
+  const { user, signOut } = useAuth()
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -205,7 +218,53 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
               </div>
             </div>
 
-            <ThemeToggle />
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              
+              {/* User Menu */}
+              {user && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="relative h-9 w-9 rounded-full">
+                      <Avatar className="h-9 w-9">
+                        <AvatarImage src={user.avatar || undefined} alt={user.email} />
+                        <AvatarFallback>
+                          {user.firstName?.[0] || user.email[0].toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">
+                          {user.firstName && user.lastName
+                            ? `${user.firstName} ${user.lastName}`
+                            : user.username || 'User'}
+                        </p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                          {user.email}
+                        </p>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => router.push('/profile')}>
+                      <User className="mr-2 h-4 w-4" />
+                      Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => router.push('/settings')}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Settings
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={signOut} className="text-destructive">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Log out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </div>
         </header>
 
