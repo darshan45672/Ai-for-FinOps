@@ -7,9 +7,14 @@ export interface User {
   id: string;
   email: string;
   password: string;
-  name?: string;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  avatar?: string;
   role: string;
   status: string;
+  emailVerified?: boolean;
+  lastLoginAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,7 +22,10 @@ export interface User {
 export interface CreateUserPayload {
   email: string;
   password: string;
-  name?: string;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  avatar?: string;
   role?: string;
 }
 
