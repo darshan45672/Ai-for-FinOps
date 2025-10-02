@@ -11,6 +11,7 @@ export interface User {
   firstName?: string;
   lastName?: string;
   avatar?: string;
+  githubId?: string;
   role: string;
   status: string;
   emailVerified?: boolean;
@@ -21,12 +22,28 @@ export interface User {
 
 export interface CreateUserPayload {
   email: string;
-  password: string;
+  password?: string;
   username?: string;
   firstName?: string;
   lastName?: string;
   avatar?: string;
+  githubId?: string;
   role?: string;
+  emailVerified?: boolean;
+}
+
+export interface UpdateUserPayload {
+  email?: string;
+  password?: string;
+  username?: string;
+  firstName?: string;
+  lastName?: string;
+  avatar?: string;
+  githubId?: string;
+  role?: string;
+  status?: string;
+  emailVerified?: boolean;
+  lastLoginAt?: Date;
 }
 
 export interface RefreshToken {
@@ -110,6 +127,37 @@ export class DatabaseClientService {
       throw new HttpException(
         error.response?.data?.message || 'User not found',
         error.response?.status || 404,
+      );
+    }
+  }
+
+  async findUserByGithubId(githubId: string): Promise<User | null> {
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(`${this.baseUrl}/users/github/${githubId}`)
+      );
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw new HttpException(
+        error.response?.data?.message || 'Error finding user by GitHub ID',
+        error.response?.status || 500,
+      );
+    }
+  }
+
+  async updateUser(id: string, data: UpdateUserPayload): Promise<User> {
+    try {
+      const response = await firstValueFrom(
+        this.httpService.patch(`${this.baseUrl}/users/${id}`, data)
+      );
+      return response.data;
+    } catch (error) {
+      throw new HttpException(
+        error.response?.data?.message || 'Failed to update user',
+        error.response?.status || 500,
       );
     }
   }

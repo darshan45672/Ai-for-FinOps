@@ -1,6 +1,7 @@
-import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Request, HttpCode, HttpStatus, Res } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, RefreshTokenDto } from './dto';
 
@@ -64,5 +65,28 @@ export class AuthController {
       timestamp: new Date().toISOString(),
       service: 'authentication',
     };
+  }
+
+  @Get('github')
+  @UseGuards(AuthGuard('github'))
+  @ApiOperation({ summary: 'Initiate GitHub OAuth login' })
+  @ApiResponse({ status: 302, description: 'Redirect to GitHub' })
+  async githubLogin() {
+    // This route initiates the OAuth flow
+  }
+
+  @Get('github/callback')
+  @UseGuards(AuthGuard('github'))
+  @ApiOperation({ summary: 'GitHub OAuth callback' })
+  @ApiResponse({ status: 302, description: 'Redirect to frontend with tokens' })
+  async githubCallback(@Request() req, @Res() res: Response) {
+    // OAuth user data is attached to req.user by the strategy
+    const result = await this.authService.validateOAuthUser(req.user);
+    
+    // Redirect to frontend with tokens in URL
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const redirectUrl = `${frontendUrl}/auth/callback?accessToken=${result.accessToken}&refreshToken=${result.refreshToken}`;
+    
+    res.redirect(redirectUrl);
   }
 }
