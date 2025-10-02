@@ -5,6 +5,9 @@ import { useAuth } from '@/contexts/auth-context';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ProfileForm } from '@/components/profile/profile-form';
+import { ChangePassword } from '@/components/settings/change-password';
+import { ResetPassword } from '@/components/settings/reset-password';
+import { DeleteAccount } from '@/components/settings/delete-account';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -214,25 +217,34 @@ export default function ProfilePage() {
 
               {/* Settings Tab */}
               <TabsContent value="settings" className="space-y-6 mt-0">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Account Settings</CardTitle>
-                    <CardDescription>
-                      Manage your account preferences and security
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-6">
-                      <div className="rounded-lg border border-dashed p-12 text-center">
-                        <Shield className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                        <h3 className="mt-4 text-lg font-semibold">Settings Coming Soon</h3>
-                        <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto">
-                          Advanced settings and security options will be available here.
-                        </p>
-                      </div>
+                <div className="space-y-6">
+                  {/* Security Section */}
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-semibold">Security</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Manage your password and account security settings
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
+                    
+                    <ChangePassword />
+                    <ResetPassword />
+                  </div>
+
+                  <Separator />
+
+                  {/* Danger Zone Section */}
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">Danger Zone</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Irreversible actions that permanently affect your account
+                      </p>
+                    </div>
+                    
+                    <DeleteAccount />
+                  </div>
+                </div>
               </TabsContent>
             </Tabs>
           </main>

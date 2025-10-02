@@ -77,6 +77,20 @@ export interface CreateSessionPayload {
   expiresAt?: Date;
 }
 
+export interface PasswordResetToken {
+  id: string;
+  token: string;
+  userId: string;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+export interface CreatePasswordResetTokenPayload {
+  token: string;
+  userId: string;
+  expiresAt: Date;
+}
+
 @Injectable()
 export class DatabaseClientService {
   private readonly baseUrl: string;
@@ -121,6 +135,20 @@ export class DatabaseClientService {
     try {
       const response = await firstValueFrom(
         this.httpService.get(`${this.baseUrl}/users/${id}`)
+      );
+      return response.data;
+    } catch (error) {
+      throw new HttpException(
+        error.response?.data?.message || 'User not found',
+        error.response?.status || 404,
+      );
+    }
+  }
+
+  async findUserByIdWithPassword(id: string): Promise<User> {
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(`${this.baseUrl}/users/${id}/with-password`)
       );
       return response.data;
     } catch (error) {
@@ -233,6 +261,61 @@ export class DatabaseClientService {
       );
     } catch (error) {
       // Ignore errors
+    }
+  }
+
+  async deleteUser(userId: string): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.httpService.delete(`${this.baseUrl}/users/${userId}`)
+      );
+    } catch (error) {
+      throw new HttpException(
+        error.response?.data?.message || 'Failed to delete user',
+        error.response?.status || 500,
+      );
+    }
+  }
+
+  // Password Reset Token Operations
+  async createPasswordResetToken(data: CreatePasswordResetTokenPayload): Promise<PasswordResetToken> {
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(`${this.baseUrl}/password-reset-tokens`, data)
+      );
+      return response.data;
+    } catch (error) {
+      throw new HttpException(
+        error.response?.data?.message || 'Failed to create password reset token',
+        error.response?.status || 500,
+      );
+    }
+  }
+
+  async findPasswordResetToken(token: string): Promise<PasswordResetToken | null> {
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(`${this.baseUrl}/password-reset-tokens/${token}`)
+      );
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw new HttpException(
+        error.response?.data?.message || 'Error finding password reset token',
+        error.response?.status || 500,
+      );
+    }
+  }
+
+  async deletePasswordResetToken(token: string): Promise<void> {
+    try {
+      await firstValueFrom(
+        this.httpService.delete(`${this.baseUrl}/password-reset-tokens/${token}`)
+      );
+    } catch (error) {
+      // Ignore errors for token deletion
     }
   }
 }
