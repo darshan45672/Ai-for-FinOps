@@ -1,0 +1,82 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Enums
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DELETED
+}
+
+// Models
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  username      String?    @unique
+  password      String
+  firstName     String?
+  lastName      String?
+  avatar        String?
+  role          UserRole   @default(USER)
+  status        UserStatus @default(ACTIVE)
+  emailVerified Boolean    @default(false)
+  phoneNumber   String?
+  
+  // Timestamps
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  lastLoginAt   DateTime?
+  
+  // Relations
+  refreshTokens RefreshToken[]
+  sessions      Session[]
+  
+  @@index([email])
+  @@index([username])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  @@index([userId])
+  @@index([token])
+  @@map("sessions")
+}

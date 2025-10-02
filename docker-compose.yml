@@ -51,23 +51,21 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3001
-      DATABASE_URL: postgresql://${POSTGRES_USER:-finops}:${POSTGRES_PASSWORD:-finops_password}@postgres:5432/${POSTGRES_DB:-ai_finops}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
+      DATABASE_SERVICE_URL: http://database:3002
       JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-refresh-secret-key-change-in-production}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3003}
     ports:
       - "3001:3001"
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
+      database:
         condition: service_healthy
     networks:
       - finops-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/auth/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -114,17 +112,11 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3002
-      DATABASE_URL: postgresql://${POSTGRES_USER:-finops}:${POSTGRES_PASSWORD:-finops_password}@postgres:5432/${POSTGRES_DB:-ai_finops}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL:-${DATABASE_URL}}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3003}
     ports:
       - "3002:3002"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     networks:
       - finops-network
     healthcheck:

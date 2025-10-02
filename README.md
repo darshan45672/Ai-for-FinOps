@@ -3,9 +3,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![NestJS](https://img.shields.io/badge/NestJS-E0234E?style=for-the-badge&logo=nestjs&logoColor=white)](https://nestjs.com/)
+[![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Podman](https://img.shields.io/badge/Podman-892CA0?style=for-the-badge&logo=podman&logoColor=white)](https://podman.io/)
 
-A comprehensive AI-powered FinOps platform that enables businesses to analyze, optimize, and take action on their cloud usage through intelligent chat-based interactions.
+A comprehensive AI-powered FinOps platform built with microservices architecture that enables businesses to analyze, optimize, and take action on their cloud usage through intelligent chat-based interactions.
 
 ## 🎯 Overview
 
@@ -17,23 +19,68 @@ AI for FinOps is a revolutionary platform that transforms how businesses manage 
 - **💬 Chat-Based Interface**: Intuitive ChatGPT-like interface for natural language queries and interactions
 - **☁️ Multi-Cloud Integration**: Seamlessly connects with major cloud platforms (AWS, Azure, GCP, etc.)
 - **📊 Real-Time Monitoring**: Live monitoring of cloud resources and cost tracking
-- **🔐 Secure Authentication**: Enterprise-grade authentication and authorization system
+- **🔐 Secure Authentication**: JWT-based authentication with refresh tokens and session management
+- **🏗️ Microservices Architecture**: Independent, scalable services for better maintainability
 - **📱 Responsive Design**: Mobile-first design with support for all devices
 - **🎨 Theme Support**: Dark, light, and system theme options
 - **⚡ Performance Optimized**: Built with modern technologies for optimal performance
+- **🐳 Containerized**: Podman/Docker support for easy deployment
 
-## 🏗️ Architecture
+## 🏗️ Microservices Architecture
 
-The platform follows a microservices architecture with dedicated modules:
+The platform follows a microservices architecture with four independent services:
 
 ```
-AI for FinOps/
-├── 🤖 authentication/     # Authentication & Authorization Service
-├── 🔧 backend/           # Core Backend API Service
-├── 🗄️ database/          # Database Management Service
-├── 🎨 frontend/          # React/Next.js Frontend Application
-└── 📊 [Future Modules]   # AI Engine, Analytics, Integrations...
+┌─────────────────────────────────────────────────────────────────┐
+│                      AI-FinOps Platform                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌────────────────┐                                             │
+│  │   Frontend     │  Next.js 15 (Port 3003)                     │
+│  │   Service      │  React, TailwindCSS, shadcn/ui             │
+│  └────────┬───────┘                                             │
+│           │                                                      │
+│      ┌────▼──────────┬──────────────┬──────────────┐           │
+│      │               │              │              │            │
+│  ┌───▼──────────┐ ┌──▼─────────┐ ┌─▼────────────┐ │           │
+│  │Authentication│ │  Backend   │ │   Database   │ │           │
+│  │   Service    │ │  Service   │ │   Service    │ │           │
+│  │ (Port 3001)  │ │(Port 3000) │ │ (Port 3002)  │ │           │
+│  │ JWT, Passport│ │  Business  │ │Prisma, Neon  │ │           │
+│  └──────┬───────┘ └────┬───────┘ └──────┬───────┘ │           │
+│         │              │                 │         │            │
+│         └──────────────┴─────────────────┘         │            │
+│                        │                            │            │
+│               ┌────────▼────────────────────────────▼─────┐     │
+│               │   Neon Serverless PostgreSQL Database     │     │
+│               └───────────────────────────────────────────┘     │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
 ```
+
+### Services
+
+#### 🎨 Frontend Service (Port 3003)
+- **Technology**: Next.js 15, React, TailwindCSS, shadcn/ui
+- **Responsibility**: User interface and client-side logic
+- **Features**: SSR, authentication UI, chat interface, theme management
+
+#### 🔐 Authentication Service (Port 3001)
+- **Technology**: NestJS, Passport.js, JWT, bcrypt
+- **Responsibility**: User authentication and authorization
+- **Features**: Registration, login, token management, role-based access control
+- **API Docs**: http://localhost:3001/api/docs
+
+#### 🗄️ Database Service (Port 3002)
+- **Technology**: NestJS, Prisma ORM, Neon PostgreSQL
+- **Responsibility**: All database operations and data management
+- **Features**: User CRUD, token management, session management, migrations
+- **API Docs**: http://localhost:3002/api/docs
+
+#### � Backend Service (Port 3000)
+- **Technology**: NestJS
+- **Responsibility**: Business logic and AI integrations
+- **Features**: FinOps calculations, analytics, AI/ML model integrations
 
 ### Technology Stack
 
@@ -44,55 +91,116 @@ AI for FinOps/
 - **shadcn/ui** - Modern component library
 - **React Hook Form + Zod** - Form validation
 
-#### Backend
-- **NestJS** - Progressive Node.js framework
+#### Backend Services
+- **NestJS 11** - Progressive Node.js framework
+- **Prisma ORM 6** - Type-safe database client
+- **Passport.js** - Authentication middleware
+- **JWT** - JSON Web Tokens for auth
+- **bcrypt** - Password hashing
+- **Swagger/OpenAPI** - API documentation
 - **TypeScript** - Server-side type safety
-- **RESTful APIs** - Standard API architecture
 
-#### Authentication
-- **JWT Tokens** - Secure authentication
-- **Role-based Access Control** - Granular permissions
-- **Social Login Integration** - Google, GitHub, Twitter
+#### Database
+- **Neon PostgreSQL** - Serverless PostgreSQL database
+- **Prisma Migrations** - Schema versioning
+
+#### Deployment
+- **Podman/Docker** - Container orchestration
+- **Redis** - Caching and session storage (optional)
+- **Nginx** - Reverse proxy (production)
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ 
-- npm or yarn
-- Git
+- **Node.js** 20+ 
+- **npm** or **yarn**
+- **Podman** 5.6.1+ (or Docker)
+- **podman-compose** 1.5.0+
+- **Neon Account** - For PostgreSQL database ([Get it here](https://console.neon.tech))
 
-### Quick Start with Podman 🐳
+### Quick Start
 
-The easiest way to get started is using containers:
+#### Option 1: Using Podman/Docker (Recommended) 🐳
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/darshan45672/Ai-for-FinOps.git
 cd Ai-for-FinOps
 
-# 2. Create environment file
-make env
+# 2. Setup Neon Database
+# - Go to https://console.neon.tech
+# - Create a new project
+# - Copy your connection string
 
-# 3. Build and start all services
-make up-build
+# 3. Create .env file in root directory
+cat > .env << EOF
+DATABASE_URL="postgresql://user:pass@ep-xxx.neon.tech/db?sslmode=require"
+DIRECT_URL="postgresql://user:pass@ep-xxx.neon.tech/db?sslmode=require"
+JWT_SECRET="your-32-character-secret-key"
+JWT_REFRESH_SECRET="your-32-character-refresh-secret"
+EOF
 
-# 4. View logs
-make logs
+# 4. Build and start all services
+podman-compose build
+podman-compose up -d
+
+# 5. Run database migrations
+podman exec -it ai-finops-database npm run prisma:migrate
+
+# 6. Check status
+podman-compose ps
 ```
 
 **Access the application:**
-- Frontend: http://localhost:3003
-- Backend API: http://localhost:3000
-- Authentication: http://localhost:3001
+- **Frontend**: http://localhost:3003
+- **Backend API**: http://localhost:3000
+- **Authentication API**: http://localhost:3001/api/docs
+- **Database API**: http://localhost:3002/api/docs
 
-📚 **Full container documentation**: See [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)
+#### Option 2: Manual Installation
 
-### Manual Installation
+**1. Setup Database Service**
+```bash
+cd database
+npm install
+# Create .env with DATABASE_URL
+npm run prisma:generate
+npm run prisma:migrate
+npm run start:dev
+```
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/darshan45672/Ai-for-FinOps.git
+**2. Setup Authentication Service**
+```bash
+cd authentication
+npm install
+# Create .env with DATABASE_SERVICE_URL and JWT secrets
+npm run start:dev
+```
+
+**3. Setup Backend Service**
+```bash
+cd backend
+npm install
+# Create .env with service URLs
+npm run start:dev
+```
+
+**4. Setup Frontend**
+```bash
+cd frontend
+npm install
+# Create .env.local with API URLs
+npm run dev
+```
+
+### 📖 Detailed Setup
+
+For comprehensive setup instructions, see:
+- **[Complete Setup Guide](docs/SETUP_GUIDE.md)** - Step-by-step installation
+- **[Microservices Architecture](docs/MICROSERVICES_ARCHITECTURE.md)** - System design
+- **[Database Service Guide](database/DATABASE_SERVICE_GUIDE.md)** - Database operations
+- **[Authentication Guide](authentication/AUTHENTICATION_GUIDE.md)** - Auth implementation
    cd Ai-for-FinOps
    ```
 
