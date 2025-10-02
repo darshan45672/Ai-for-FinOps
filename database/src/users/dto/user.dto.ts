@@ -19,10 +19,11 @@ export class CreateUserDto {
   @IsEmail()
   email: string;
 
-  @ApiProperty({ example: 'SecureP@ss123' })
+  @ApiProperty({ example: 'SecureP@ss123', required: false })
+  @IsOptional()
   @IsString()
   @MinLength(8)
-  password: string;
+  password?: string;
 
   @ApiProperty({ example: 'johndoe', required: false })
   @IsOptional()
@@ -38,6 +39,20 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   lastName?: string;
+
+  @ApiProperty({ example: 'github123456', required: false })
+  @IsOptional()
+  @IsString()
+  githubId?: string;
+
+  @ApiProperty({ example: 'https://avatars.githubusercontent.com/u/12345', required: false })
+  @IsOptional()
+  @IsString()
+  avatar?: string;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  emailVerified?: boolean;
 
   @ApiProperty({ enum: UserRole, default: UserRole.USER, required: false })
   @IsOptional()
@@ -65,6 +80,24 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   lastName?: string;
+
+  @ApiProperty({ example: 'https://avatars.githubusercontent.com/u/12345', required: false })
+  @IsOptional()
+  @IsString()
+  avatar?: string;
+
+  @ApiProperty({ example: 'github123456', required: false })
+  @IsOptional()
+  @IsString()
+  githubId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  lastLoginAt?: Date;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  emailVerified?: boolean;
 
   @ApiProperty({ enum: UserRole, required: false })
   @IsOptional()
