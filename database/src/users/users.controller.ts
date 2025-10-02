@@ -16,6 +16,7 @@ import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto, UserResponseDto } from './dto/user.dto';
 import { CreateRefreshTokenDto } from './dto/refresh-token.dto';
 import { CreateSessionDto } from './dto/session.dto';
+import { CreatePasswordResetTokenDto } from './dto/password-reset-token.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -67,6 +68,14 @@ export class UsersController {
   @ApiResponse({ status: 404, description: 'User not found' })
   async findUserById(@Param('id') id: string) {
     return this.usersService.findUserById(id);
+  }
+
+  @Get(':id/with-password')
+  @ApiOperation({ summary: 'Find user by ID with password (internal use only)' })
+  @ApiResponse({ status: 200, description: 'User found with password' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async findUserByIdWithPassword(@Param('id') id: string) {
+    return this.usersService.findUserByIdWithPassword(id);
   }
 
   @Put(':id')
@@ -188,5 +197,42 @@ export class SessionsController {
   @ApiResponse({ status: 204, description: 'Expired sessions cleaned up' })
   async cleanExpiredSessions() {
     return this.usersService.cleanExpiredSessions();
+  }
+}
+
+@ApiTags('Password Reset Tokens')
+@Controller('password-reset-tokens')
+export class PasswordResetTokensController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Post()
+  @ApiOperation({ summary: 'Create password reset token' })
+  @ApiResponse({ status: 201, description: 'Token created' })
+  async createPasswordResetToken(@Body() createTokenDto: CreatePasswordResetTokenDto) {
+    return this.usersService.createPasswordResetToken(createTokenDto);
+  }
+
+  @Get(':token')
+  @ApiOperation({ summary: 'Find password reset token' })
+  @ApiResponse({ status: 200, description: 'Token found' })
+  @ApiResponse({ status: 404, description: 'Token not found' })
+  async findPasswordResetToken(@Param('token') token: string) {
+    return this.usersService.findPasswordResetToken(token);
+  }
+
+  @Delete(':token')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete password reset token' })
+  @ApiResponse({ status: 204, description: 'Token deleted' })
+  async deletePasswordResetToken(@Param('token') token: string) {
+    return this.usersService.deletePasswordResetToken(token);
+  }
+
+  @Post('cleanup')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Clean up expired reset tokens' })
+  @ApiResponse({ status: 204, description: 'Expired tokens cleaned up' })
+  async cleanExpiredTokens() {
+    return this.usersService.cleanExpiredPasswordResetTokens();
   }
 }
