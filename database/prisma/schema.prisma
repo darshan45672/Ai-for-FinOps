@@ -37,7 +37,6 @@ model User {
   role          UserRole   @default(USER)
   status        UserStatus @default(ACTIVE)
   emailVerified Boolean    @default(false)
-  phoneNumber   String?
   
   // Timestamps
   createdAt     DateTime   @default(now())
@@ -57,26 +56,29 @@ model RefreshToken {
   id        String   @id @default(cuid())
   token     String   @unique
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
   
-  @@index([userId])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
   @@index([token])
+  @@index([userId])
   @@map("refresh_tokens")
 }
 
 model Session {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   token     String   @unique
   ipAddress String?
   userAgent String?
   expiresAt DateTime
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   
-  @@index([userId])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
   @@index([token])
+  @@index([userId])
   @@map("sessions")
 }
