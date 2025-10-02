@@ -30,10 +30,11 @@ model User {
   id            String     @id @default(cuid())
   email         String     @unique
   username      String?    @unique
-  password      String
+  password      String?
   firstName     String?
   lastName      String?
   avatar        String?
+  githubId      String?    @unique
   role          UserRole   @default(USER)
   status        UserStatus @default(ACTIVE)
   emailVerified Boolean    @default(false)
@@ -49,6 +50,7 @@ model User {
   
   @@index([email])
   @@index([username])
+  @@index([githubId])
   @@map("users")
 }
 

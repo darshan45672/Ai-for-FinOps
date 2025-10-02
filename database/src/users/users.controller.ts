@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -52,6 +53,14 @@ export class UsersController {
     return this.usersService.findUserByEmail(email);
   }
 
+  @Get('github/:githubId')
+  @ApiOperation({ summary: 'Find user by GitHub ID' })
+  @ApiResponse({ status: 200, description: 'User found' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async findUserByGithubId(@Param('githubId') githubId: string) {
+    return this.usersService.findUserByGithubId(githubId);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Find user by ID' })
   @ApiResponse({ status: 200, description: 'User found', type: UserResponseDto })
@@ -61,10 +70,21 @@ export class UsersController {
   }
 
   @Put(':id')
-  @ApiOperation({ summary: 'Update user' })
+  @ApiOperation({ summary: 'Update user (full update)' })
   @ApiResponse({ status: 200, description: 'User updated successfully', type: UserResponseDto })
   @ApiResponse({ status: 404, description: 'User not found' })
   async updateUser(
+    @Param('id') id: string,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    return this.usersService.updateUser(id, updateUserDto);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update user (partial update)' })
+  @ApiResponse({ status: 200, description: 'User updated successfully', type: UserResponseDto })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async patchUser(
     @Param('id') id: string,
     @Body() updateUserDto: UpdateUserDto,
   ) {

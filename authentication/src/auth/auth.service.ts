@@ -20,10 +20,13 @@ export class AuthService {
     // Hash password
     const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
-    // Create user via database service
+    // Create user via database service with all fields
     const user = await this.databaseClient.createUser({
       email: registerDto.email,
       password: hashedPassword,
+      username: registerDto.username,
+      firstName: registerDto.firstName,
+      lastName: registerDto.lastName,
     });
 
     // Generate tokens
