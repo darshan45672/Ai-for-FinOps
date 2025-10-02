@@ -117,6 +117,39 @@ class AuthService {
   }
 
   /**
+   * Update user profile
+   */
+  async updateProfile(data: {
+    firstName?: string;
+    lastName?: string;
+    username?: string;
+    avatar?: string;
+  }): Promise<User> {
+    const user = this.getUser();
+    if (!user) {
+      throw new Error('No user found');
+    }
+
+    // Call database service directly to update user
+    const response = await axios.patch(
+      `http://localhost:3002/users/${user.id}`,
+      data,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.getAccessToken()}`,
+        },
+      }
+    );
+
+    // Update stored user data
+    const updatedUser = { ...user, ...response.data };
+    this.setUser(updatedUser);
+    
+    return updatedUser;
+  }
+
+  /**
    * Check if user is authenticated
    */
   isAuthenticated(): boolean {
