@@ -47,6 +47,7 @@ model User {
   // Relations
   refreshTokens RefreshToken[]
   sessions      Session[]
+  passwordResetTokens PasswordResetToken[]
   
   @@index([email])
   @@index([username])
@@ -83,4 +84,18 @@ model Session {
   @@index([token])
   @@index([userId])
   @@map("sessions")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([token])
+  @@index([userId])
+  @@map("password_reset_tokens")
 }

@@ -1,8 +1,9 @@
-                                                                                                                        import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto, UserResponseDto } from './dto/user.dto';
 import { CreateRefreshTokenDto } from './dto/refresh-token.dto';
 import { CreateSessionDto } from './dto/session.dto';
+import { CreatePasswordResetTokenDto } from './dto/password-reset-token.dto';
 
 @Injectable()
 export class UsersService {
@@ -71,6 +72,18 @@ export class UsersService {
 
     const { password, ...result } = user;
     return result as any;
+  }
+
+  async findUserByIdWithPassword(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user;
   }
 
   async updateUser(id: string, data: UpdateUserDto): Promise<UserResponseDto> {
@@ -205,6 +218,49 @@ export class UsersService {
 
   async cleanExpiredSessions() {
     await this.prisma.session.deleteMany({
+      where: {
+        expiresAt: {
+          lt: new Date(),
+        },
+      },
+    });
+  }
+
+  // Password Reset Token Operations
+  async createPasswordResetToken(data: CreatePasswordResetTokenDto) {
+    return this.prisma.passwordResetToken.create({
+      data: {
+        token: data.token,
+        userId: data.userId,
+        expiresAt: data.expiresAt,
+      },
+    });
+  }
+
+  async findPasswordResetToken(token: string) {
+    const resetToken = await this.prisma.passwordResetToken.findUnique({
+      where: { token },
+    });
+
+    if (!resetToken) {
+      throw new NotFoundException('Password reset token not found');
+    }
+
+    return resetToken;
+  }
+
+  async deletePasswordResetToken(token: string) {
+    try {
+      await this.prisma.passwordResetToken.delete({
+        where: { token },
+      });
+    } catch (error) {
+      // Token might not exist, which is fine
+    }
+  }
+
+  async cleanExpiredPasswordResetTokens() {
+    await this.prisma.passwordResetToken.deleteMany({
       where: {
         expiresAt: {
           lt: new Date(),
