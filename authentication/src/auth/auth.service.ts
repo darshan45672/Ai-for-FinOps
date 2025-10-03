@@ -253,4 +253,119 @@ export class AuthService {
       ...tokens,
     };
   }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    // Get user from database with password
+    const user = await this.databaseClient.findUserByIdWithPassword(userId);
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password in database
+    await this.databaseClient.updateUser(userId, {
+      password: hashedPassword,
+    });
+
+    // Logout from all devices (delete all refresh tokens and sessions)
+    await this.logout(userId);
+
+    return { message: 'Password changed successfully. Please login again.' };
+  }
+
+  async deleteAccount(userId: string, password: string) {
+    // Get user from database with password
+    const user = await this.databaseClient.findUserByIdWithPassword(userId);
+
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Password is incorrect');
+    }
+
+    // Delete user's refresh tokens
+    await this.databaseClient.deleteUserRefreshTokens(userId);
+
+    // Delete user's sessions
+    await this.databaseClient.deleteUserSessions(userId);
+
+    // Delete user account
+    await this.databaseClient.deleteUser(userId);
+
+    return { message: 'Account deleted successfully' };
+  }
+
+  async requestPasswordReset(email: string) {
+    try {
+      // Find user by email
+      const user = await this.databaseClient.findUserByEmail(email);
+
+      // Generate reset token (valid for 1 hour)
+      const resetToken = require('crypto').randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      // Store reset token in database
+      await this.databaseClient.createPasswordResetToken({
+        token: resetToken,
+        userId: user.id,
+        expiresAt,
+      });
+
+      // In production, send email with reset link
+      // For now, log the reset link (in production, use email service)
+      const frontendUrl = this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+      const resetLink = `${frontendUrl}/auth/reset-password?token=${resetToken}`;
+      
+      console.log('Password Reset Link:', resetLink);
+      
+      // TODO: Send email with reset link
+      // await this.emailService.sendPasswordResetEmail(user.email, resetLink);
+
+      return { 
+        message: 'Password reset link has been sent to your email address',
+        // In development, include the link (remove in production)
+        resetLink: process.env.NODE_ENV === 'development' ? resetLink : undefined,
+      };
+    } catch (error) {
+      // Don't reveal if email exists for security
+      return { message: 'If an account exists with this email, a password reset link will be sent' };
+    }
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    // Validate reset token
+    const resetToken = await this.databaseClient.findPasswordResetToken(token);
+
+    if (!resetToken) {
+      throw new UnauthorizedException('Invalid or expired reset token');
+    }
+
+    if (new Date() > new Date(resetToken.expiresAt)) {
+      throw new UnauthorizedException('Reset token has expired');
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password in database
+    await this.databaseClient.updateUser(resetToken.userId, {
+      password: hashedPassword,
+    });
+
+    // Delete the used reset token
+    await this.databaseClient.deletePasswordResetToken(token);
+
+    // Delete all refresh tokens and sessions for security
+    await this.databaseClient.deleteUserRefreshTokens(resetToken.userId);
+    await this.databaseClient.deleteUserSessions(resetToken.userId);
+
+    return { message: 'Password reset successfully. Please login with your new password.' };
+  }
 }
