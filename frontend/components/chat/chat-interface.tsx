@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
+import { useMounted } from "@/hooks/use-mounted"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -35,6 +36,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const { user, signOut } = useAuth()
+  const isMounted = useMounted()
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -191,26 +193,32 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-3">
               {/* Mobile Menu Button */}
-              <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="sm" className="md:hidden">
-                    <Menu className="h-5 w-5" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="left" className="w-80 p-0">
-                  <SheetHeader className="sr-only">
-                    <SheetTitle>Chat Navigation</SheetTitle>
-                  </SheetHeader>
-                  <Sidebar
-                    chatHistory={chatHistory}
-                    currentChatId={currentChatId}
-                    onNewChat={handleNewChat}
-                    onSelectChat={handleSelectChat}
-                    onDeleteChat={handleDeleteChat}
-                    onRenameChat={handleRenameChat}
-                  />
-                </SheetContent>
-              </Sheet>
+              {isMounted ? (
+                <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                  <SheetTrigger asChild>
+                    <Button variant="ghost" size="sm" className="md:hidden">
+                      <Menu className="h-5 w-5" />
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="w-80 p-0">
+                    <SheetHeader className="sr-only">
+                      <SheetTitle>Chat Navigation</SheetTitle>
+                    </SheetHeader>
+                    <Sidebar
+                      chatHistory={chatHistory}
+                      currentChatId={currentChatId}
+                      onNewChat={handleNewChat}
+                      onSelectChat={handleSelectChat}
+                      onDeleteChat={handleDeleteChat}
+                      onRenameChat={handleRenameChat}
+                    />
+                  </SheetContent>
+                </Sheet>
+              ) : (
+                <Button variant="ghost" size="sm" className="md:hidden" disabled>
+                  <Menu className="h-5 w-5" />
+                </Button>
+              )}
 
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
@@ -223,31 +231,32 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
               
               {/* User Menu */}
               {user && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="relative h-9 w-9 rounded-full">
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage src={user.avatar || undefined} alt={user.email} />
-                        <AvatarFallback>
-                          {user.firstName?.[0] || user.email[0].toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel>
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">
-                          {user.firstName && user.lastName
-                            ? `${user.firstName} ${user.lastName}`
-                            : user.username || 'User'}
-                        </p>
-                        <p className="text-xs leading-none text-muted-foreground">
-                          {user.email}
-                        </p>
-                      </div>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
+                isMounted ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="relative h-9 w-9 rounded-full">
+                        <Avatar className="h-9 w-9">
+                          <AvatarImage src={user.avatar || undefined} alt={user.email} />
+                          <AvatarFallback>
+                            {user.firstName?.[0] || user.email[0].toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuLabel>
+                        <div className="flex flex-col space-y-1">
+                          <p className="text-sm font-medium leading-none">
+                            {user.firstName && user.lastName
+                              ? `${user.firstName} ${user.lastName}`
+                              : user.username || 'User'}
+                          </p>
+                          <p className="text-xs leading-none text-muted-foreground">
+                            {user.email}
+                          </p>
+                        </div>
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => router.push('/profile')}>
                       <User className="mr-2 h-4 w-4" />
                       Profile
@@ -263,6 +272,16 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                ) : (
+                  <Button variant="ghost" size="sm" className="relative h-9 w-9 rounded-full" disabled>
+                    <Avatar className="h-9 w-9">
+                      <AvatarImage src={user.avatar || undefined} alt={user.email} />
+                      <AvatarFallback>
+                        {user.firstName?.[0] || user.email[0].toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                )
               )}
             </div>
           </div>
