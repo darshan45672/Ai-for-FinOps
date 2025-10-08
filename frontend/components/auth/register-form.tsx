@@ -244,11 +244,18 @@ export function RegisterForm({ onSubmit, isLoading = false }: RegisterFormProps)
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Button variant="outline" disabled={isLoading}>
+        <Button
+          variant="outline"
+          disabled={isLoading}
+          onClick={() => {
+            window.location.href = 'http://localhost:3001/auth/github'
+          }}
+          type="button"
+        >
           <Github className="h-4 w-4 mr-2" />
           GitHub
         </Button>
-        <Button variant="outline" disabled={isLoading}>
+        <Button variant="outline" disabled={isLoading} type="button">
           <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24">
             <path
               fill="currentColor"
