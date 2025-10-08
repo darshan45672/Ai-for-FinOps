@@ -32,9 +32,11 @@ export default function RegisterPage() {
       })
       
       router.push('/') // Redirect to chat interface after successful registration
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Registration error:", error)
-      const errorMessage = error?.response?.data?.message || error?.message || "Registration failed. Please try again."
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : "Registration failed. Please try again."
       setError(errorMessage)
     } finally {
       setIsLoading(false)

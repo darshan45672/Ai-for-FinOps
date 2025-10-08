@@ -19,7 +19,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Loader2, Upload, Check, AlertCircle, Camera } from 'lucide-react';
+import { Loader2, Check, AlertCircle, Camera } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 const profileSchema = z.object({
@@ -73,8 +73,11 @@ export function ProfileForm({ user }: ProfileFormProps) {
       setTimeout(() => {
         window.location.reload();
       }, 2000);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update profile');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error 
+        ? err.message 
+        : 'Failed to update profile';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }

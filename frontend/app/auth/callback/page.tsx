@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import { setCookie } from '@/lib/cookies';
 
-export default function OAuthCallbackPage() {
+function CallbackComponent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
@@ -79,5 +79,20 @@ export default function OAuthCallbackPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function OAuthCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold">Loading...</h2>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">Please wait</p>
+        </div>
+      </div>
+    }>
+      <CallbackComponent />
+    </Suspense>
   );
 }
