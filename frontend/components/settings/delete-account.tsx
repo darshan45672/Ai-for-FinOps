@@ -77,7 +77,7 @@ export function DeleteAccount() {
       } else {
         setError(result.message || "Failed to delete account. Please check your password.")
       }
-    } catch (error) {
+    } catch {
       setError("An error occurred. Please try again later.")
     } finally {
       setIsLoading(false)

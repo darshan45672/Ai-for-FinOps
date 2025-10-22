@@ -19,9 +19,11 @@ export default function SignInPage() {
     try {
       await signIn(data.email, data.password, data.rememberMe)
       router.push('/') // Redirect to chat interface after successful login
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Sign in error:", error)
-      const errorMessage = error?.response?.data?.message || error?.message || "Sign in failed. Please try again."
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : "Sign in failed. Please try again."
       setError(errorMessage)
     } finally {
       setIsLoading(false)

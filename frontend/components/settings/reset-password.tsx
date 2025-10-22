@@ -79,7 +79,7 @@ export function ResetPassword() {
           text: result.message || "Failed to send reset email. Please try again." 
         })
       }
-    } catch (error) {
+    } catch {
       setMessage({ 
         type: "error", 
         text: "An error occurred. Please try again later." 
@@ -109,7 +109,7 @@ export function ResetPassword() {
             <DialogHeader>
               <DialogTitle>Reset Your Password</DialogTitle>
               <DialogDescription>
-                Enter your email address and we'll send you a link to reset your password.
+                Enter your email address and we&apos;ll send you a link to reset your password.
               </DialogDescription>
             </DialogHeader>
 

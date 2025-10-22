@@ -30,9 +30,25 @@ AI for FinOps is a revolutionary platform that transforms how businesses manage 
 
 ### Prerequisites
 
-- Node.js 18+ and npm
-- PostgreSQL (or use Neon serverless)
-- Podman/Docker (optional, for containerized deployment)
+- **Node.js v20+**
+- **npm v10+**
+- **PostgreSQL** (or use Neon serverless)
+- **Podman/Docker** (optional, for containerized deployment)
+
+## 🧩 Version Matrix
+
+| Component        | Version   | Notes |
+|------------------|-----------|-------|
+| **Node.js**      | 20.11.1   | Recommended runtime |
+| **NestJS**       | 11.1.6    | Backend framework |
+| **Next.js**      | 15.5.4    | Frontend framework |
+| **React**        | 19.2.0    | Frontend library |
+| **TypeScript**   | 5.9.3     | Common language across frontend/backend |
+| **Prisma**       | 6.16.3      | Database ORM |
+| **PostgreSQL**   | 16+        | Recommended server version (Neon/PostgreSQL) |
+| **Tailwind CSS** | 4         | Frontend styling |
+| **ESLint**       | 9.37.0    | Linting |
+| **Prettier**     | 3.6.2     | Formatting backend code |
 
 ### 1. Clone the Repository
 
@@ -179,11 +195,11 @@ The platform follows a microservices architecture with four independent services
 
 ### Prerequisites
 
-- **Node.js** 20+ 
-- **npm** or **yarn**
-- **Podman** 5.6.1+ (or Docker)
-- **podman-compose** 1.5.0+
-- **Neon Account** - For PostgreSQL database ([Get it here](https://console.neon.tech))
+- **Node.js v20+** – Required for frontend and backend
+- **npm v10+** or **yarn** – Package manager
+- **Podman v5.6.1+** (or **Docker**) – Optional, for containerized deployment
+- **podman-compose v1.5.0+** – Only if using Podman for orchestration
+- **Neon Account** – For PostgreSQL database ([Get it here](https://console.neon.tech))
 
 ### Quick Start
 

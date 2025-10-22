@@ -72,7 +72,7 @@ export function ChangePassword() {
           text: result.message || "Failed to change password. Please check your current password." 
         })
       }
-    } catch (error) {
+    } catch {
       setMessage({ 
         type: "error", 
         text: "An error occurred. Please try again later." 
