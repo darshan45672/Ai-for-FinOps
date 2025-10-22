@@ -175,7 +175,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   return (
     <div className={cn("flex h-screen bg-background", className)}>
       {/* Desktop Sidebar */}
-      <div className="hidden md:flex w-80 border-r">
+      <div className="hidden md:flex w-80">
         <Sidebar
           chatHistory={chatHistory}
           currentChatId={currentChatId}

@@ -99,3 +99,113 @@ model PasswordResetToken {
   @@index([userId])
   @@map("password_reset_tokens")
 }
+
+// Azure Cloud Resources Models
+enum AzureResourceType {
+  VIRTUAL_MACHINE
+  STORAGE_ACCOUNT
+  SQL_DATABASE
+  APP_SERVICE
+  FUNCTION_APP
+  KUBERNETES_SERVICE
+  COSMOS_DB
+  KEY_VAULT
+  OTHER
+}
+
+enum AzureResourceStatus {
+  RUNNING
+  STOPPED
+  DEALLOCATED
+  FAILED
+  UNKNOWN
+}
+
+model AzureSubscription {
+  id             String   @id @default(cuid())
+  subscriptionId String   @unique
+  displayName    String
+  tenantId       String
+  state          String
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  resources      AzureResource[]
+  costRecords    AzureCostRecord[]
+  
+  @@index([subscriptionId])
+  @@index([tenantId])
+  @@map("azure_subscriptions")
+}
+
+model AzureResource {
+  id             String             @id @default(cuid())
+  resourceId     String             @unique
+  name           String
+  type           AzureResourceType
+  resourceType   String             // Full Azure resource type
+  location       String
+  resourceGroup  String
+  subscriptionId String
+  status         AzureResourceStatus @default(UNKNOWN)
+  sku            String?
+  tags           Json?              // Store tags as JSON
+  properties     Json?              // Store additional properties as JSON
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  lastSyncedAt   DateTime @default(now())
+  
+  // Relations
+  subscription   AzureSubscription @relation(fields: [subscriptionId], references: [subscriptionId], onDelete: Cascade)
+  
+  @@index([resourceId])
+  @@index([subscriptionId])
+  @@index([resourceGroup])
+  @@index([type])
+  @@index([location])
+  @@map("azure_resources")
+}
+
+model AzureCostRecord {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  resourceGroup  String?
+  resourceId     String?
+  serviceName    String
+  meterCategory  String?
+  usageStart     DateTime
+  usageEnd       DateTime
+  cost           Float
+  currency       String   @default("USD")
+  quantity       Float?
+  unitOfMeasure  String?
+  
+  createdAt      DateTime @default(now())
+  
+  // Relations
+  subscription   AzureSubscription @relation(fields: [subscriptionId], references: [subscriptionId], onDelete: Cascade)
+  
+  @@index([subscriptionId])
+  @@index([resourceGroup])
+  @@index([usageStart])
+  @@index([usageEnd])
+  @@map("azure_cost_records")
+}
+
+model AzureSyncLog {
+  id             String   @id @default(cuid())
+  syncType       String   // 'resources' or 'costs'
+  status         String   // 'success', 'failed', 'in_progress'
+  startedAt      DateTime @default(now())
+  completedAt    DateTime?
+  recordsSync    Int?
+  errorMessage   String?
+  
+  @@index([syncType])
+  @@index([status])
+  @@index([startedAt])
+  @@map("azure_sync_logs")
+}

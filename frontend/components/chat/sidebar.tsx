@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { 
   Plus, 
@@ -58,26 +57,24 @@ export function Sidebar({
   const groupedHistory = groupChatsByDate(filteredHistory)
 
   return (
-    <div className={cn("flex flex-col h-full bg-muted/30", className)}>
+    <div className={cn("flex flex-col h-full w-full bg-sidebar border-r border-sidebar-border", className)}>
       {/* Header */}
-      <div className="p-4 space-y-4">
+      <div className="p-6 space-y-4 border-b border-sidebar-border bg-sidebar">
         <NewChatButton onClick={onNewChat} />
         <SearchInput value={searchQuery} onChange={setSearchQuery} />
       </div>
 
-      <Separator />
-
       {/* Chat History */}
-      <ScrollArea className="flex-1 px-2">
-        <div className="space-y-4 py-4">
+      <ScrollArea className="flex-1 bg-sidebar">
+        <div className="px-3 py-4 space-y-6">
           {Object.entries(groupedHistory).map(([dateGroup, chats]) => (
-            <div key={dateGroup} className="space-y-2">
-              <div className="px-2 py-1">
-                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            <div key={dateGroup} className="space-y-1.5">
+              <div className="px-3 py-2">
+                <h3 className="text-xs font-semibold text-sidebar-foreground/60 uppercase tracking-wider">
                   {dateGroup}
                 </h3>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {chats.map((chat) => (
                   <ChatHistoryItem
                     key={chat.id}
@@ -93,9 +90,9 @@ export function Sidebar({
           ))}
 
           {filteredHistory.length === 0 && (
-            <div className="text-center py-8">
-              <MessageSquare className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">
+            <div className="text-center py-12 px-6">
+              <MessageSquare className="h-10 w-10 text-sidebar-foreground/40 mx-auto mb-3" />
+              <p className="text-sm text-sidebar-foreground/60">
                 {searchQuery ? "No chats found" : "No chat history yet"}
               </p>
             </div>
@@ -114,7 +111,7 @@ function NewChatButton({ onClick }: NewChatButtonProps) {
   return (
     <Button
       onClick={onClick}
-      className="w-full justify-start gap-2 h-11 text-left font-medium"
+      className="w-full justify-start gap-3 h-11 text-left font-medium bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80 border-sidebar-border shadow-sm transition-colors"
       variant="outline"
     >
       <Plus className="h-4 w-4" />
@@ -131,13 +128,13 @@ interface SearchInputProps {
 function SearchInput({ value, onChange }: SearchInputProps) {
   return (
     <div className="relative">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sidebar-foreground/50" />
       <input
         type="text"
         placeholder="Search chats..."
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full pl-9 pr-3 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30"
+        className="w-full pl-10 pr-3 py-2.5 text-sm bg-sidebar-accent text-sidebar-foreground placeholder:text-sidebar-foreground/50 border border-sidebar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-sidebar-ring focus:border-sidebar-ring shadow-sm transition-all"
       />
     </div>
   )
@@ -181,54 +178,59 @@ function ChatHistoryItem({
   return (
     <div
       className={cn(
-        "group relative rounded-lg border border-transparent hover:border-border transition-colors",
-        isActive && "bg-accent border-border"
+        "group relative rounded-lg border transition-all duration-200",
+        isActive 
+          ? "bg-sidebar-accent border-sidebar-accent text-sidebar-accent-foreground shadow-sm" 
+          : "border-transparent hover:bg-sidebar-accent/50 hover:border-sidebar-border"
       )}
     >
       {isEditing ? (
-        <div className="p-3">
+        <div className="px-3 py-2.5">
           <input
             type="text"
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
             onBlur={handleRename}
             onKeyDown={handleKeyDown}
-            className="w-full text-sm bg-transparent border-none outline-none focus:ring-0"
+            className="w-full text-sm bg-transparent text-sidebar-foreground border-none outline-none focus:ring-0 placeholder:text-sidebar-foreground/50"
             autoFocus
           />
         </div>
       ) : (
-        <div className="relative flex items-start justify-between gap-2 p-3 hover:bg-accent/50 transition-colors rounded-lg">
+        <div className="relative flex items-start justify-between gap-2 px-3 py-2.5 cursor-pointer rounded-lg">
           <div 
-            className="flex-1 min-w-0 cursor-pointer"
+            className="flex-1 min-w-0"
             onClick={onSelect}
           >
-            <h4 className="text-sm font-medium truncate">{chat.title}</h4>
+            <h4 className="text-sm font-medium text-sidebar-foreground truncate mb-1.5">{chat.title}</h4>
             {chat.lastMessage && (
-              <p className="text-xs text-muted-foreground truncate mt-1">
+              <p className="text-xs text-sidebar-foreground/60 truncate mb-2">
                 {chat.lastMessage}
               </p>
             )}
-            <div className="flex items-center gap-2 mt-2">
-              <Badge variant="secondary" className="text-xs">
+            <div className="flex items-center gap-2">
+              <Badge 
+                variant="secondary" 
+                className="text-xs px-2 py-0.5 bg-sidebar border-sidebar-border text-sidebar-foreground/70 hover:bg-sidebar hover:text-sidebar-foreground"
+              >
                 {chat.messageCount} messages
               </Badge>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-sidebar-foreground/50">
                 {formatRelativeTime(chat.timestamp)}
               </span>
             </div>
           </div>
           
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0"
+                  className="h-8 w-8 p-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreHorizontal className="h-4 w-4 text-sidebar-foreground" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
@@ -246,7 +248,7 @@ function ChatHistoryItem({
                     e.stopPropagation()
                     onDelete()
                   }}
-                  className="text-destructive focus:text-destructive"
+                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete
