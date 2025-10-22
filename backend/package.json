@@ -20,9 +20,17 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@azure/arm-costmanagement": "^1.0.0-beta.1",
+    "@azure/arm-resourcegraph": "^4.2.1",
+    "@azure/arm-resources": "^7.0.0",
+    "@azure/identity": "^4.13.0",
+    "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.1.6",
+    "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.6",
     "@nestjs/platform-express": "^11.1.6",
+    "@nestjs/schedule": "^6.0.1",
+    "axios": "^1.12.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },
