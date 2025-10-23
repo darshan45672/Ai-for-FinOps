@@ -30,6 +30,15 @@ export class AzureController {
   }
 
   /**
+   * Manually trigger Azure activity logs sync
+   */
+  @Post('sync/activity-logs')
+  async triggerActivityLogsSync() {
+    this.logger.log('Manual activity logs sync triggered via API');
+    return this.azureSchedulerService.triggerActivityLogsSync();
+  }
+
+  /**
    * Get Azure configuration status
    */
   @Get('status')
