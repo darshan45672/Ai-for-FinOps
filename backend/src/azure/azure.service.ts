@@ -3,6 +3,7 @@ import { ClientSecretCredential } from '@azure/identity';
 import { ResourceManagementClient } from '@azure/arm-resources';
 import { CostManagementClient } from '@azure/arm-costmanagement';
 import { ResourceGraphClient } from '@azure/arm-resourcegraph';
+import { MonitorClient } from '@azure/arm-monitor';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 
@@ -247,5 +248,144 @@ export class AzureService {
    */
   isConfigured(): boolean {
     return !!(this.tenantId && this.clientId && this.clientSecret);
+  }
+
+  /**
+   * Fetch Azure Activity Logs for a subscription
+   * @param subscriptionId - The subscription ID
+   * @param startTime - Start time for the logs (default: 24 hours ago)
+   * @param endTime - End time for the logs (default: now)
+   * @returns Array of activity log events
+   */
+  async getActivityLogs(
+    subscriptionId: string,
+    startTime?: Date,
+    endTime?: Date,
+  ): Promise<any[]> {
+    try {
+      // Default to last 24 hours if not specified
+      const start = startTime || new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const end = endTime || new Date();
+
+      const url = `https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.Insights/eventtypes/management/values`;
+      const tokenResponse = await this.credential.getToken(
+        'https://management.azure.com/.default',
+      );
+
+      // Build filter for time range
+      const filter = `eventTimestamp ge '${start.toISOString()}' and eventTimestamp le '${end.toISOString()}'`;
+
+      const response = await firstValueFrom(
+        this.httpService.get<{ value: any[] }>(url, {
+          headers: {
+            Authorization: `Bearer ${tokenResponse.token}`,
+          },
+          params: {
+            'api-version': '2015-04-01',
+            $filter: filter,
+            $select:
+              'eventTimestamp,eventDataId,correlationId,operationName,operationId,level,status,subStatus,caller,category,resourceId,resourceGroupName,resourceType,resourceProviderName,eventName,description,httpRequest,authorization,claims,properties',
+          },
+        }),
+      );
+
+      this.logger.log(
+        `Fetched ${response.data.value.length} activity log events from subscription ${subscriptionId}`,
+      );
+      return response.data.value;
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to fetch activity logs: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch activity logs for a specific resource group
+   */
+  async getActivityLogsByResourceGroup(
+    subscriptionId: string,
+    resourceGroupName: string,
+    startTime?: Date,
+    endTime?: Date,
+  ): Promise<any[]> {
+    try {
+      const start = startTime || new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const end = endTime || new Date();
+
+      const url = `https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.Insights/eventtypes/management/values`;
+      const tokenResponse = await this.credential.getToken(
+        'https://management.azure.com/.default',
+      );
+
+      const filter = `eventTimestamp ge '${start.toISOString()}' and eventTimestamp le '${end.toISOString()}' and resourceGroupName eq '${resourceGroupName}'`;
+
+      const response = await firstValueFrom(
+        this.httpService.get<{ value: any[] }>(url, {
+          headers: {
+            Authorization: `Bearer ${tokenResponse.token}`,
+          },
+          params: {
+            'api-version': '2015-04-01',
+            $filter: filter,
+          },
+        }),
+      );
+
+      this.logger.log(
+        `Fetched ${response.data.value.length} activity log events for resource group ${resourceGroupName}`,
+      );
+      return response.data.value;
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to fetch activity logs for resource group: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch activity logs filtered by caller (user/service principal)
+   */
+  async getActivityLogsByCaller(
+    subscriptionId: string,
+    caller: string,
+    startTime?: Date,
+    endTime?: Date,
+  ): Promise<any[]> {
+    try {
+      const start = startTime || new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const end = endTime || new Date();
+
+      const url = `https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.Insights/eventtypes/management/values`;
+      const tokenResponse = await this.credential.getToken(
+        'https://management.azure.com/.default',
+      );
+
+      const filter = `eventTimestamp ge '${start.toISOString()}' and eventTimestamp le '${end.toISOString()}' and caller eq '${caller}'`;
+
+      const response = await firstValueFrom(
+        this.httpService.get<{ value: any[] }>(url, {
+          headers: {
+            Authorization: `Bearer ${tokenResponse.token}`,
+          },
+          params: {
+            'api-version': '2015-04-01',
+            $filter: filter,
+          },
+        }),
+      );
+
+      this.logger.log(
+        `Fetched ${response.data.value.length} activity log events for caller ${caller}`,
+      );
+      return response.data.value;
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to fetch activity logs by caller: ${error.message}`,
+      );
+      throw error;
+    }
   }
 }

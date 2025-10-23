@@ -173,6 +173,91 @@ export class AzureSchedulerService {
   }
 
   /**
+   * Sync Azure Activity Logs every 6 hours
+   * Cron expression: At minute 0 past every 6th hour
+   */
+  @Cron('0 */6 * * *')
+  async syncAzureActivityLogs() {
+    if (!this.azureService.isConfigured()) {
+      this.logger.warn('Azure credentials not configured. Skipping activity logs sync.');
+      return;
+    }
+
+    const syncLogId = await this.createSyncLog('activity_logs', 'in_progress');
+    let totalActivityLogs = 0;
+
+    try {
+      this.logger.log('Starting Azure activity logs sync...');
+
+      // Get date range (last 6 hours to match cron schedule)
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setHours(startDate.getHours() - 6);
+
+      // Get all subscriptions
+      const subscriptions = await this.azureService.getSubscriptions();
+
+      for (const subscription of subscriptions) {
+        try {
+          // Fetch activity logs
+          const activityLogs = await this.azureService.getActivityLogs(
+            subscription.subscriptionId,
+            startDate,
+            endDate,
+          );
+
+          this.logger.log(`Fetched ${activityLogs.length} activity logs from subscription ${subscription.displayName}`);
+
+          // Save activity logs to database
+          for (const log of activityLogs) {
+            // Helper function to extract string value from Azure API response
+            const extractValue = (field: any): string | null => {
+              if (!field) return null;
+              if (typeof field === 'string') return field;
+              if (typeof field === 'object' && field.value) return String(field.value);
+              if (typeof field === 'object') return JSON.stringify(field);
+              return String(field);
+            };
+
+            await this.saveActivityLog({
+              subscriptionId: subscription.subscriptionId,
+              eventTimestamp: new Date(log.eventTimestamp),
+              eventDataId: log.eventDataId,
+              correlationId: extractValue(log.correlationId),
+              operationName: extractValue(log.operationName) || 'Unknown',
+              operationId: extractValue(log.operationId),
+              level: extractValue(log.level) || 'Informational',
+              status: extractValue(log.status),
+              subStatus: extractValue(log.subStatus),
+              caller: extractValue(log.caller),
+              category: extractValue(log.category) || 'Administrative',
+              resourceId: extractValue(log.resourceId),
+              resourceGroupName: extractValue(log.resourceGroupName),
+              resourceType: extractValue(log.resourceType),
+              resourceProviderName: extractValue(log.resourceProviderName),
+              eventName: extractValue(log.eventName),
+              description: extractValue(log.description),
+              httpRequest: log.httpRequest || null,
+              authorization: log.authorization || null,
+              claims: log.claims || null,
+              properties: log.properties || null,
+            });
+            totalActivityLogs++;
+          }
+        } catch (error: any) {
+          this.logger.error(`Failed to sync activity logs for subscription ${subscription.displayName}: ${error.message}`);
+        }
+      }
+
+      await this.updateSyncLog(syncLogId, 'success', totalActivityLogs);
+      this.logger.log(`Azure activity logs sync completed successfully. Total logs: ${totalActivityLogs}`);
+    } catch (error: any) {
+      await this.updateSyncLog(syncLogId, 'failed', totalActivityLogs, error.message);
+      this.logger.error(`Azure activity logs sync failed: ${error.message}`);
+    }
+  }
+
+  /**
    * Manual trigger for resource sync
    */
   async triggerResourceSync(): Promise<{ message: string }> {
@@ -188,6 +273,15 @@ export class AzureSchedulerService {
     // Run sync in background
     this.syncAzureCosts();
     return { message: 'Azure cost sync triggered' };
+  }
+
+  /**
+   * Manual trigger for activity logs sync
+   */
+  async triggerActivityLogsSync(): Promise<{ message: string }> {
+    // Run sync in background
+    this.syncAzureActivityLogs();
+    return { message: 'Azure activity logs sync triggered' };
   }
 
   // Helper methods to interact with database service
@@ -224,6 +318,18 @@ export class AzureSchedulerService {
       );
     } catch (error: any) {
       this.logger.error(`Failed to save cost record: ${error.message}`);
+    }
+  }
+
+  private async saveActivityLog(data: any) {
+    try {
+      await firstValueFrom(
+        this.httpService.post(`${this.databaseServiceUrl}/azure/activity-logs`, {
+          activityLogs: [data],
+        }),
+      );
+    } catch (error: any) {
+      this.logger.error(`Failed to save activity log: ${error.message}`);
     }
   }
 

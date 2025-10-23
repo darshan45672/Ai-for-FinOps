@@ -197,7 +197,7 @@ model AzureCostRecord {
 
 model AzureSyncLog {
   id             String   @id @default(cuid())
-  syncType       String   // 'resources' or 'costs'
+  syncType       String   // 'resources', 'costs', or 'activity_logs'
   status         String   // 'success', 'failed', 'in_progress'
   startedAt      DateTime @default(now())
   completedAt    DateTime?
@@ -208,4 +208,41 @@ model AzureSyncLog {
   @@index([status])
   @@index([startedAt])
   @@map("azure_sync_logs")
+}
+
+// Azure Activity Logs for audit trail and operations monitoring
+model AzureActivityLog {
+  id                 String   @id @default(cuid())
+  subscriptionId     String
+  eventTimestamp     DateTime
+  eventDataId        String   @unique
+  correlationId      String?
+  operationName      String
+  operationId        String?
+  level              String   // Informational, Warning, Error, Critical
+  status             String?  // Started, Succeeded, Failed
+  subStatus          String?
+  caller             String?  // User or service principal who initiated the operation
+  category           String   // Administrative, Security, ServiceHealth, Alert, etc.
+  resourceId         String?
+  resourceGroupName  String?
+  resourceType       String?
+  resourceProviderName String?
+  eventName          String?
+  description        String?
+  httpRequest        Json?    // HTTP request details
+  authorization      Json?    // Authorization details
+  claims             Json?    // Claims from the token
+  properties         Json?    // Additional properties
+  
+  createdAt          DateTime @default(now())
+  
+  @@index([subscriptionId])
+  @@index([eventTimestamp])
+  @@index([operationName])
+  @@index([category])
+  @@index([level])
+  @@index([caller])
+  @@index([resourceGroupName])
+  @@map("azure_activity_logs")
 }

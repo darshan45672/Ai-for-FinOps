@@ -9,6 +9,7 @@ import {
 export enum AzureSyncType {
   resources = 'resources',
   costs = 'costs',
+  activity_logs = 'activity_logs',
 }
 
 export enum AzureSyncStatus {
@@ -48,9 +49,33 @@ export interface CreateAzureCostRecordDto {
   currency: string;
   usageStart: Date;
   usageEnd: Date;
-  meterCategory?: string;
   quantity?: number;
   unitOfMeasure?: string;
+  meterCategory?: string;
+}
+
+export interface CreateAzureActivityLogDto {
+  subscriptionId: string;
+  eventTimestamp: Date;
+  eventDataId: string;
+  correlationId?: string;
+  operationName: string;
+  operationId?: string;
+  level: string;
+  status?: string;
+  subStatus?: string;
+  caller?: string;
+  category: string;
+  resourceId?: string;
+  resourceGroupName?: string;
+  resourceType?: string;
+  resourceProviderName?: string;
+  eventName?: string;
+  description?: string;
+  httpRequest?: any;
+  authorization?: any;
+  claims?: any;
+  properties?: any;
 }
 
 export interface CreateAzureSyncLogDto {
@@ -254,6 +279,169 @@ export class AzureService {
       totalCost: totalCost._sum.cost || 0,
       costByService,
       costByResourceGroup,
+    };
+  }
+
+  // Azure Activity Logs
+  async createActivityLog(data: CreateAzureActivityLogDto) {
+    return this.prisma.azureActivityLog.create({
+      data: {
+        subscriptionId: data.subscriptionId,
+        eventTimestamp: data.eventTimestamp,
+        eventDataId: data.eventDataId,
+        correlationId: data.correlationId,
+        operationName: data.operationName,
+        operationId: data.operationId,
+        level: data.level,
+        status: data.status,
+        subStatus: data.subStatus,
+        caller: data.caller,
+        category: data.category,
+        resourceId: data.resourceId,
+        resourceGroupName: data.resourceGroupName,
+        resourceType: data.resourceType,
+        resourceProviderName: data.resourceProviderName,
+        eventName: data.eventName,
+        description: data.description,
+        httpRequest: data.httpRequest,
+        authorization: data.authorization,
+        claims: data.claims,
+        properties: data.properties,
+      },
+    });
+  }
+
+  async createActivityLogs(activityLogs: CreateAzureActivityLogDto[]) {
+    const results = await Promise.all(
+      activityLogs.map((log) => {
+        // Use upsert to avoid duplicate eventDataId errors
+        return this.prisma.azureActivityLog.upsert({
+          where: { eventDataId: log.eventDataId },
+          create: {
+            subscriptionId: log.subscriptionId,
+            eventTimestamp: log.eventTimestamp,
+            eventDataId: log.eventDataId,
+            correlationId: log.correlationId,
+            operationName: log.operationName,
+            operationId: log.operationId,
+            level: log.level,
+            status: log.status,
+            subStatus: log.subStatus,
+            caller: log.caller,
+            category: log.category,
+            resourceId: log.resourceId,
+            resourceGroupName: log.resourceGroupName,
+            resourceType: log.resourceType,
+            resourceProviderName: log.resourceProviderName,
+            eventName: log.eventName,
+            description: log.description,
+            httpRequest: log.httpRequest,
+            authorization: log.authorization,
+            claims: log.claims,
+            properties: log.properties,
+          },
+          update: {
+            eventTimestamp: log.eventTimestamp,
+            correlationId: log.correlationId,
+            operationName: log.operationName,
+            operationId: log.operationId,
+            level: log.level,
+            status: log.status,
+            subStatus: log.subStatus,
+            caller: log.caller,
+            category: log.category,
+            resourceId: log.resourceId,
+            resourceGroupName: log.resourceGroupName,
+            resourceType: log.resourceType,
+            resourceProviderName: log.resourceProviderName,
+            eventName: log.eventName,
+            description: log.description,
+            httpRequest: log.httpRequest,
+            authorization: log.authorization,
+            claims: log.claims,
+            properties: log.properties,
+          },
+        });
+      })
+    );
+    return { count: results.length, activityLogs: results };
+  }
+
+  async getActivityLogs(filters?: {
+    subscriptionId?: string;
+    category?: string;
+    level?: string;
+    caller?: string;
+    resourceGroupName?: string;
+    startDate?: Date;
+    endDate?: Date;
+    limit?: number;
+  }) {
+    return this.prisma.azureActivityLog.findMany({
+      where: {
+        ...(filters?.subscriptionId && { subscriptionId: filters.subscriptionId }),
+        ...(filters?.category && { category: filters.category }),
+        ...(filters?.level && { level: filters.level }),
+        ...(filters?.caller && { caller: filters.caller }),
+        ...(filters?.resourceGroupName && { resourceGroupName: filters.resourceGroupName }),
+        ...(filters?.startDate && {
+          eventTimestamp: { gte: filters.startDate },
+        }),
+        ...(filters?.endDate && {
+          eventTimestamp: { lte: filters.endDate },
+        }),
+      },
+      orderBy: { eventTimestamp: 'desc' },
+      take: filters?.limit || 100,
+    });
+  }
+
+  async getActivityLogById(id: string) {
+    return this.prisma.azureActivityLog.findUnique({
+      where: { id },
+    });
+  }
+
+  async getActivityLogsByOperationName(operationName: string, limit = 50) {
+    return this.prisma.azureActivityLog.findMany({
+      where: { operationName: { contains: operationName } },
+      orderBy: { eventTimestamp: 'desc' },
+      take: limit,
+    });
+  }
+
+  async getActivityLogStatistics(subscriptionId?: string) {
+    const where = subscriptionId ? { subscriptionId } : {};
+    
+    const totalLogs = await this.prisma.azureActivityLog.count({ where });
+    
+    const logsByCategory = await this.prisma.azureActivityLog.groupBy({
+      by: ['category'],
+      where,
+      _count: true,
+      orderBy: { _count: { category: 'desc' } },
+    });
+
+    const logsByLevel = await this.prisma.azureActivityLog.groupBy({
+      by: ['level'],
+      where,
+      _count: true,
+      orderBy: { _count: { level: 'desc' } },
+    });
+
+    const logsByCaller = await this.prisma.azureActivityLog.groupBy({
+      by: ['caller'],
+      where,
+      _count: true,
+      orderBy: { _count: { caller: 'desc' } },
+      take: 10,
+    });
+
+    return {
+      totalLogs,
+      logsByCategory,
+      logsByLevel,
+      topCallers: logsByCaller,
     };
   }
 

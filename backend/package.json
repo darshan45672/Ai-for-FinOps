@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@azure/arm-costmanagement": "^1.0.0-beta.1",
+    "@azure/arm-monitor": "^7.0.0",
     "@azure/arm-resourcegraph": "^4.2.1",
     "@azure/arm-resources": "^7.0.0",
     "@azure/identity": "^4.13.0",

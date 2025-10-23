@@ -3,6 +3,7 @@ import type {
   CreateAzureSubscriptionDto,
   CreateAzureResourceDto,
   CreateAzureCostRecordDto,
+  CreateAzureActivityLogDto,
   CreateAzureSyncLogDto,
 } from './azure.service';
 import {
@@ -93,6 +94,58 @@ export class AzureController {
   @Get('costs/summary')
   async getCostSummary(@Query('subscriptionId') subscriptionId?: string) {
     return this.azureService.getCostSummary(subscriptionId);
+  }
+
+  // Activity Logs
+  @Post('activity-logs')
+  async createActivityLogs(
+    @Body() body: { activityLogs: CreateAzureActivityLogDto[] }
+  ) {
+    return this.azureService.createActivityLogs(body.activityLogs);
+  }
+
+  @Get('activity-logs')
+  async getActivityLogs(
+    @Query('subscriptionId') subscriptionId?: string,
+    @Query('category') category?: string,
+    @Query('level') level?: string,
+    @Query('caller') caller?: string,
+    @Query('resourceGroupName') resourceGroupName?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.azureService.getActivityLogs({
+      subscriptionId,
+      category,
+      level,
+      caller,
+      resourceGroupName,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      limit: limit ? parseInt(limit) : undefined,
+    });
+  }
+
+  @Get('activity-logs/:id')
+  async getActivityLogById(@Param('id') id: string) {
+    return this.azureService.getActivityLogById(id);
+  }
+
+  @Get('activity-logs/operation/:operationName')
+  async getActivityLogsByOperation(
+    @Param('operationName') operationName: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.azureService.getActivityLogsByOperationName(
+      operationName,
+      limit ? parseInt(limit) : undefined,
+    );
+  }
+
+  @Get('activity-logs-statistics')
+  async getActivityLogStatistics(@Query('subscriptionId') subscriptionId?: string) {
+    return this.azureService.getActivityLogStatistics(subscriptionId);
   }
 
   // Sync Logs
