@@ -1,44 +1,121 @@
+# ============================================
 # Dependencies
+# ============================================
 node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
+# ============================================
 # Testing
+# ============================================
 coverage
 *.log
+test
+*.test.ts
+*.spec.ts
+*.test.js
+*.spec.js
 
-# Production
+# ============================================
+# Production Build Artifacts (exclude from build context)
+# ============================================
 dist
 build
+.next
+out
 
-# IDE
+# ============================================
+# IDE and Editor Files
+# ============================================
 .vscode
 .idea
 *.swp
 *.swo
 *~
+.editorconfig
+.eslintcache
 
-# OS
+# ============================================
+# OS Files
+# ============================================
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Environment
+# ============================================
+# Environment Files (use build args or secrets instead)
+# ============================================
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
+# ============================================
 # Git
+# ============================================
 .git
 .gitignore
-
-# Documentation
-README.md
-*.md
-
-# CI/CD
+.gitattributes
 .github
 
+# ============================================
+# Documentation (except critical API references)
+# ============================================
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+docs/
+*.md
+!DATABASE_SERVICE_GUIDE.md
+!AZURE_API_REFERENCE.md
+
+# ============================================
+# CI/CD
+# ============================================
+.github
+.gitlab-ci.yml
+.travis.yml
+.circleci
+Jenkinsfile
+
+# ============================================
+# Docker
+# ============================================
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# ============================================
 # TypeScript
+# ============================================
 *.tsbuildinfo
+# Keep tsconfig files for build
+# tsconfig*.json
+
+# ============================================
+# Linting and Formatting
+# ============================================
+.eslintrc*
+.prettierrc*
+.eslintignore
+.prettierignore
+eslint.config.*
+
+# ============================================
+# Prisma (exclude dev-only files)
+# ============================================
+# Keep: prisma/schema.prisma and prisma/migrations/
+prisma/dev.db
+prisma/dev.db-journal
+
+# ============================================
+# Misc
+# ============================================
+.husky
+.npmrc
+.nvmrc
