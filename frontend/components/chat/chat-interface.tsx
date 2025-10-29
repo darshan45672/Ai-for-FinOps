@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useMounted } from "@/hooks/use-mounted"
+import { useSocket } from "@/hooks/use-socket"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -31,12 +32,43 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [chatHistory, setChatHistory] = useState<ChatHistory[]>([])
   const [currentChatId, setCurrentChatId] = useState<string>()
-  const [isLoading, setIsLoading] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const { user, signOut } = useAuth()
   const isMounted = useMounted()
+
+  // Socket.IO integration
+  const handleMessageReceived = (message: string, toolsUsed?: string[]) => {
+    const assistantMessage: Message = {
+      id: `assistant-${Date.now()}`,
+      content: message,
+      role: "assistant",
+      timestamp: new Date(),
+    }
+    
+    setMessages((prev) => {
+      const lastMessage = prev[prev.length - 1]
+      updateChatHistory(lastMessage, assistantMessage)
+      return [...prev, assistantMessage]
+    })
+    
+    if (toolsUsed && toolsUsed.length > 0) {
+      console.log('Tools used:', toolsUsed)
+    }
+  }
+
+  const handleSocketError = (error: string) => {
+    console.error('Socket error:', error)
+    // You could show a toast notification here
+  }
+
+  const { 
+    isConnected, 
+    isTyping, 
+    sendMessage: sendSocketMessage,
+    clearConversation: clearSocketConversation 
+  } = useSocket(handleMessageReceived, handleSocketError)
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -47,10 +79,10 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
         scrollContainer.scrollTop = scrollContainer.scrollHeight
       }
     }
-  }, [messages])
+  }, [messages, isTyping])
 
   const handleSendMessage = async (content: string) => {
-    if (!content.trim() || isLoading) return
+    if (!content.trim() || isTyping || !isConnected) return
 
     // Add user message
     const userMessage: Message = {
@@ -61,29 +93,13 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     }
 
     setMessages((prev) => [...prev, userMessage])
-    setIsLoading(true)
 
     try {
-      // Simulate AI response (replace with actual API call)
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      
-      const assistantMessage: Message = {
-        id: `assistant-${Date.now()}`,
-        content: `I received your message: "${content}". This is a simulated response. In a real implementation, this would be connected to your AI backend.`,
-        role: "assistant",
-        timestamp: new Date(),
-      }
-
-      setMessages((prev) => [...prev, assistantMessage])
-      
-      // Update chat history
-      updateChatHistory(userMessage, assistantMessage)
-      
+      // Send message via Socket.IO
+      sendSocketMessage(content)
     } catch (error) {
       console.error("Error sending message:", error)
-      // Handle error state
-    } finally {
-      setIsLoading(false)
+      handleSocketError('Failed to send message')
     }
   }
 
@@ -91,6 +107,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     const newChatId = `chat-${Date.now()}`
     setCurrentChatId(newChatId)
     setMessages([])
+    clearSocketConversation()
     setIsMobileMenuOpen(false)
   }
 
@@ -98,6 +115,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     setCurrentChatId(chatId)
     // In a real app, load messages for this chat
     setMessages([])
+    clearSocketConversation()
     setIsMobileMenuOpen(false)
   }
 
@@ -223,6 +241,16 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
                 <h1 className="font-semibold text-lg">AI Chat</h1>
+                {/* Connection Status */}
+                <div className="flex items-center gap-1.5 ml-2">
+                  <div className={cn(
+                    "w-2 h-2 rounded-full",
+                    isConnected ? "bg-green-500 animate-pulse" : "bg-red-500"
+                  )} />
+                  <span className="text-xs text-muted-foreground hidden sm:inline">
+                    {isConnected ? "Connected" : "Disconnected"}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -332,7 +360,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
                   />
                 ))}
                 
-                {isLoading && (
+                {isTyping && (
                   <div className="flex items-center gap-4 p-4">
                     <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
                       <div className="w-4 h-4 bg-primary/20 rounded-full animate-pulse" />
@@ -352,9 +380,9 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
         {/* Chat Input */}
         <ChatInput
           onSendMessage={handleSendMessage}
-          isLoading={isLoading}
-          onStop={() => setIsLoading(false)}
-          disabled={false}
+          isLoading={isTyping}
+          onStop={() => {}}
+          disabled={!isConnected}
         />
       </div>
     </div>
