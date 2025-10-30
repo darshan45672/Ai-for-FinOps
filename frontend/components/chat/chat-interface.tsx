@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useMounted } from "@/hooks/use-mounted"
+import { useSocket } from "@/hooks/use-socket"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -31,12 +32,83 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [chatHistory, setChatHistory] = useState<ChatHistory[]>([])
   const [currentChatId, setCurrentChatId] = useState<string>()
-  const [isLoading, setIsLoading] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const { user, signOut } = useAuth()
   const isMounted = useMounted()
+
+  // Socket.IO integration
+  const handleMessageReceived = (message: string, toolsUsed?: string[], conversationId?: string) => {
+    const assistantMessage: Message = {
+      id: `assistant-${Date.now()}`,
+      content: message,
+      role: "assistant",
+      timestamp: new Date(),
+    }
+    
+    setMessages((prev) => {
+      const lastMessage = prev[prev.length - 1]
+      updateChatHistory(lastMessage, assistantMessage)
+      return [...prev, assistantMessage]
+    })
+    
+    // Update currentChatId if we got a new conversationId from the server
+    if (conversationId && !currentChatId) {
+      setCurrentChatId(conversationId)
+      setConversationId(conversationId)
+    }
+    
+    if (toolsUsed && toolsUsed.length > 0) {
+      console.log('Tools used:', toolsUsed)
+    }
+  }
+
+  const handleSocketError = (error: string) => {
+    console.error('Socket error:', error)
+    // You could show a toast notification here
+  }
+
+  const { 
+    isConnected, 
+    isTyping, 
+    sendMessage: sendSocketMessage,
+    clearConversation: clearSocketConversation,
+    conversationId,
+    setConversationId,
+  } = useSocket(handleMessageReceived, handleSocketError)
+
+  // Load user's conversations on mount
+  useEffect(() => {
+    if (user?.id && isMounted) {
+      loadUserConversations()
+    }
+  }, [user?.id, isMounted])
+
+  const loadUserConversations = async () => {
+    if (!user?.id) return
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3002'}/chat/conversations?userId=${user.id}`
+      )
+      
+      if (response.ok) {
+        const conversations = await response.json()
+        const history: ChatHistory[] = conversations.map((conv: any) => ({
+          id: conv.id,
+          title: conv.title,
+          lastMessage: conv.lastMessage?.content || '',
+          timestamp: new Date(conv.updatedAt),
+          messageCount: conv.messageCount || 0,
+        }))
+        setChatHistory(history)
+      }
+    } catch (error) {
+      console.error('Failed to load conversations:', error)
+    }
+  }
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -47,10 +119,10 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
         scrollContainer.scrollTop = scrollContainer.scrollHeight
       }
     }
-  }, [messages])
+  }, [messages, isTyping])
 
   const handleSendMessage = async (content: string) => {
-    if (!content.trim() || isLoading) return
+    if (!content.trim() || isTyping || !isConnected) return
 
     // Add user message
     const userMessage: Message = {
@@ -61,59 +133,93 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     }
 
     setMessages((prev) => [...prev, userMessage])
-    setIsLoading(true)
 
     try {
-      // Simulate AI response (replace with actual API call)
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      
-      const assistantMessage: Message = {
-        id: `assistant-${Date.now()}`,
-        content: `I received your message: "${content}". This is a simulated response. In a real implementation, this would be connected to your AI backend.`,
-        role: "assistant",
-        timestamp: new Date(),
-      }
-
-      setMessages((prev) => [...prev, assistantMessage])
-      
-      // Update chat history
-      updateChatHistory(userMessage, assistantMessage)
-      
+      // Send message via Socket.IO with conversationId if available
+      sendSocketMessage(content, conversationId)
     } catch (error) {
       console.error("Error sending message:", error)
-      // Handle error state
-    } finally {
-      setIsLoading(false)
+      handleSocketError('Failed to send message')
     }
   }
 
   const handleNewChat = () => {
-    const newChatId = `chat-${Date.now()}`
-    setCurrentChatId(newChatId)
+    setCurrentChatId(undefined)
+    setConversationId(undefined)
     setMessages([])
+    clearSocketConversation()
     setIsMobileMenuOpen(false)
   }
 
-  const handleSelectChat = (chatId: string) => {
+  const handleSelectChat = async (chatId: string) => {
     setCurrentChatId(chatId)
-    // In a real app, load messages for this chat
-    setMessages([])
+    setConversationId(chatId)
     setIsMobileMenuOpen(false)
-  }
+    setIsLoadingHistory(true)
 
-  const handleDeleteChat = (chatId: string) => {
-    setChatHistory((prev) => prev.filter((chat) => chat.id !== chatId))
-    if (currentChatId === chatId) {
-      handleNewChat()
+    // Load messages for this conversation from database
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3002'}/chat/conversations/${chatId}/messages`
+      )
+      
+      if (response.ok) {
+        const dbMessages = await response.json()
+        const loadedMessages: Message[] = dbMessages.map((msg: any) => ({
+          id: msg.id,
+          content: msg.content,
+          role: msg.role.toLowerCase() as 'user' | 'assistant',
+          timestamp: new Date(msg.createdAt),
+        }))
+        setMessages(loadedMessages)
+      }
+    } catch (error) {
+      console.error('Failed to load conversation history:', error)
+      handleSocketError('Failed to load conversation')
+    } finally {
+      setIsLoadingHistory(false)
     }
   }
 
-  const handleRenameChat = (chatId: string, newTitle: string) => {
-    setChatHistory((prev) =>
-      prev.map((chat) =>
-        chat.id === chatId ? { ...chat, title: newTitle } : chat
+  const handleDeleteChat = async (chatId: string) => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3002'}/chat/conversations/${chatId}`,
+        { method: 'DELETE' }
       )
-    )
+      
+      if (response.ok) {
+        setChatHistory((prev) => prev.filter((chat) => chat.id !== chatId))
+        if (currentChatId === chatId) {
+          handleNewChat()
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete conversation:', error)
+    }
+  }
+
+  const handleRenameChat = async (chatId: string, newTitle: string) => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3002'}/chat/conversations/${chatId}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: newTitle }),
+        }
+      )
+      
+      if (response.ok) {
+        setChatHistory((prev) =>
+          prev.map((chat) =>
+            chat.id === chatId ? { ...chat, title: newTitle } : chat
+          )
+        )
+      }
+    } catch (error) {
+      console.error('Failed to rename conversation:', error)
+    }
   }
 
   const handleCopyMessage = async (content: string) => {
@@ -143,33 +249,11 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     // Implement feedback handling
   }
 
-  const updateChatHistory = (userMessage: Message, assistantMessage: Message) => {
-    if (!currentChatId) return
+  const updateChatHistory = async (userMessage: Message, assistantMessage: Message) => {
+    if (!currentChatId || !user?.id) return
 
-    const existingChatIndex = chatHistory.findIndex(
-      (chat) => chat.id === currentChatId
-    )
-
-    const title = userMessage.content.slice(0, 50) + 
-                 (userMessage.content.length > 50 ? "..." : "")
-    
-    const updatedChat: ChatHistory = {
-      id: currentChatId,
-      title,
-      lastMessage: assistantMessage.content.slice(0, 100),
-      timestamp: new Date(),
-      messageCount: messages.length + 2, // +2 for the new messages
-    }
-
-    if (existingChatIndex >= 0) {
-      setChatHistory((prev) => [
-        updatedChat,
-        ...prev.slice(0, existingChatIndex),
-        ...prev.slice(existingChatIndex + 1),
-      ])
-    } else {
-      setChatHistory((prev) => [updatedChat, ...prev])
-    }
+    // Reload conversations to get the updated list from database
+    await loadUserConversations()
   }
 
   return (
@@ -223,6 +307,16 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
                 <h1 className="font-semibold text-lg">AI Chat</h1>
+                {/* Connection Status */}
+                <div className="flex items-center gap-1.5 ml-2">
+                  <div className={cn(
+                    "w-2 h-2 rounded-full",
+                    isConnected ? "bg-green-500 animate-pulse" : "bg-red-500"
+                  )} />
+                  <span className="text-xs text-muted-foreground hidden sm:inline">
+                    {isConnected ? "Connected" : "Disconnected"}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -332,7 +426,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
                   />
                 ))}
                 
-                {isLoading && (
+                {isTyping && (
                   <div className="flex items-center gap-4 p-4">
                     <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
                       <div className="w-4 h-4 bg-primary/20 rounded-full animate-pulse" />
@@ -352,9 +446,9 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
         {/* Chat Input */}
         <ChatInput
           onSendMessage={handleSendMessage}
-          isLoading={isLoading}
-          onStop={() => setIsLoading(false)}
-          disabled={false}
+          isLoading={isTyping}
+          onStop={() => {}}
+          disabled={!isConnected}
         />
       </div>
     </div>
