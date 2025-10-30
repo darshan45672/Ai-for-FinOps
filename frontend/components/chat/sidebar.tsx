@@ -1,23 +1,42 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { 
-  Plus, 
-  MessageSquare, 
+  PenSquare,
   Search, 
   MoreHorizontal, 
-  Trash2, 
-  Edit3 
+  Trash2,
+  Share2,
+  Archive,
+  MessageSquare
 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Command,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
 import { cn } from "@/lib/utils"
 
 export interface ChatHistory {
@@ -48,99 +67,135 @@ export function Sidebar({
   className,
 }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("")
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
+
+  // Ensure component is mounted (client-side only)
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  // Keyboard shortcut for search (Cmd/Ctrl + K)
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        setSearchOpen((open) => !open)
+      }
+    }
+    document.addEventListener("keydown", down)
+    return () => document.removeEventListener("keydown", down)
+  }, [])
 
   const filteredHistory = chatHistory.filter((chat) =>
-    chat.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    chat.lastMessage?.toLowerCase().includes(searchQuery.toLowerCase())
+    chat.title.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   const groupedHistory = groupChatsByDate(filteredHistory)
 
+  const handleWheel = (e: React.WheelEvent) => {
+    // Prevent scroll propagation to parent when scrolling sidebar
+    e.stopPropagation()
+  }
+
   return (
-    <div className={cn("flex flex-col h-full w-full bg-sidebar border-r border-sidebar-border", className)}>
-      {/* Header */}
-      <div className="p-6 space-y-4 border-b border-sidebar-border bg-sidebar">
-        <NewChatButton onClick={onNewChat} />
-        <SearchInput value={searchQuery} onChange={setSearchQuery} />
+    <div className={cn("flex flex-col h-full w-full bg-sidebar overflow-hidden", className)}>
+      {/* Top Navigation */}
+      <div className="flex-shrink-0 p-3 space-y-1">
+        <Button
+          onClick={onNewChat}
+          variant="ghost"
+          className="w-full justify-start h-10 px-3 font-normal hover:bg-sidebar-accent"
+        >
+          <PenSquare className="h-4 w-4 mr-3" />
+          New chat
+        </Button>
+        
+        <Button
+          onClick={() => setSearchOpen(true)}
+          variant="ghost"
+          className="w-full justify-start h-10 px-3 font-normal hover:bg-sidebar-accent"
+        >
+          <Search className="h-4 w-4 mr-3" />
+          Search chats
+          <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
+            <span className="text-xs">⌘</span>K
+          </kbd>
+        </Button>
       </div>
 
       {/* Chat History */}
-      <ScrollArea className="flex-1 bg-sidebar">
-        <div className="px-3 py-4 space-y-6">
-          {Object.entries(groupedHistory).map(([dateGroup, chats]) => (
-            <div key={dateGroup} className="space-y-1.5">
-              <div className="px-3 py-2">
-                <h3 className="text-xs font-semibold text-sidebar-foreground/60 uppercase tracking-wider">
-                  {dateGroup}
-                </h3>
-              </div>
-              <div className="space-y-0.5">
-                {chats.map((chat) => (
-                  <ChatHistoryItem
-                    key={chat.id}
-                    chat={chat}
-                    isActive={chat.id === currentChatId}
-                    onSelect={() => onSelectChat(chat.id)}
-                    onDelete={() => onDeleteChat(chat.id)}
-                    onRename={(newTitle) => onRenameChat(chat.id, newTitle)}
-                  />
-                ))}
-              </div>
+      <div className="flex-1 overflow-hidden" onWheel={handleWheel}>
+        <ScrollArea className="h-full scrollbar-thin">
+          <div className="px-3 pb-4">
+            {/* Chats Section Header */}
+            <div className="px-3 py-2 mb-1">
+              <h3 className="text-xs font-semibold text-sidebar-foreground/60 uppercase tracking-wider">
+                Chats
+              </h3>
             </div>
-          ))}
 
-          {filteredHistory.length === 0 && (
-            <div className="text-center py-12 px-6">
-              <MessageSquare className="h-10 w-10 text-sidebar-foreground/40 mx-auto mb-3" />
-              <p className="text-sm text-sidebar-foreground/60">
-                {searchQuery ? "No chats found" : "No chat history yet"}
-              </p>
+            {/* Chat List */}
+            <div className="space-y-0.5">
+              {Object.entries(groupedHistory).map(([dateGroup, chats]) => (
+                <div key={dateGroup}>
+                  {chats.map((chat) => (
+                    <ChatListItem
+                      key={chat.id}
+                      chat={chat}
+                      isActive={chat.id === currentChatId}
+                      onSelect={() => onSelectChat(chat.id)}
+                      onDelete={() => onDeleteChat(chat.id)}
+                      onRename={(newTitle) => onRenameChat(chat.id, newTitle)}
+                    />
+                  ))}
+                </div>
+              ))}
             </div>
-          )}
-        </div>
-      </ScrollArea>
+
+            {filteredHistory.length === 0 && (
+              <div className="flex items-center justify-center min-h-[200px]">
+                <p className="text-sm text-sidebar-foreground/50">
+                  No chats yet
+                </p>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      </div>
+
+      {/* Search Dialog - Client-side only to avoid hydration errors */}
+      {isMounted && (
+        <CommandDialog open={searchOpen} onOpenChange={setSearchOpen}>
+          <CommandInput placeholder="Search chats..." />
+          <CommandList>
+            <CommandEmpty>No chats found.</CommandEmpty>
+            <CommandGroup heading="Chats">
+              {chatHistory.map((chat) => (
+                <CommandItem
+                  key={chat.id}
+                  value={chat.title}
+                  onSelect={() => {
+                    onSelectChat(chat.id)
+                    setSearchOpen(false)
+                  }}
+                >
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                  <span>{chat.title}</span>
+                  {chat.id === currentChatId && (
+                    <span className="ml-auto text-xs text-muted-foreground">Active</span>
+                  )}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </CommandDialog>
+      )}
     </div>
   )
 }
 
-interface NewChatButtonProps {
-  onClick: () => void
-}
-
-function NewChatButton({ onClick }: NewChatButtonProps) {
-  return (
-    <Button
-      onClick={onClick}
-      className="w-full justify-start gap-3 h-11 text-left font-medium bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80 border-sidebar-border shadow-sm transition-colors"
-      variant="outline"
-    >
-      <Plus className="h-4 w-4" />
-      New Chat
-    </Button>
-  )
-}
-
-interface SearchInputProps {
-  value: string
-  onChange: (value: string) => void
-}
-
-function SearchInput({ value, onChange }: SearchInputProps) {
-  return (
-    <div className="relative">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-sidebar-foreground/50" />
-      <input
-        type="text"
-        placeholder="Search chats..."
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full pl-10 pr-3 py-2.5 text-sm bg-sidebar-accent text-sidebar-foreground placeholder:text-sidebar-foreground/50 border border-sidebar-border rounded-lg focus:outline-none focus:ring-2 focus:ring-sidebar-ring focus:border-sidebar-ring shadow-sm transition-all"
-      />
-    </div>
-  )
-}
-
-interface ChatHistoryItemProps {
+interface ChatListItemProps {
   chat: ChatHistory
   isActive: boolean
   onSelect: () => void
@@ -148,116 +203,127 @@ interface ChatHistoryItemProps {
   onRename: (newTitle: string) => void
 }
 
-function ChatHistoryItem({
+function ChatListItem({
   chat,
   isActive,
   onSelect,
   onDelete,
   onRename,
-}: ChatHistoryItemProps) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [editTitle, setEditTitle] = useState(chat.title)
+}: ChatListItemProps) {
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false)
+  const [renameValue, setRenameValue] = useState(chat.title)
 
   const handleRename = () => {
-    if (editTitle.trim() && editTitle !== chat.title) {
-      onRename(editTitle.trim())
+    if (renameValue.trim() && renameValue !== chat.title) {
+      onRename(renameValue.trim())
     }
-    setIsEditing(false)
-    setEditTitle(chat.title)
+    setIsRenameDialogOpen(false)
   }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleRename()
-    } else if (e.key === "Escape") {
-      setIsEditing(false)
-      setEditTitle(chat.title)
-    }
-  }
-
   return (
     <div
       className={cn(
-        "group relative rounded-lg border transition-all duration-200",
+        "group relative flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-colors",
         isActive 
-          ? "bg-sidebar-accent border-sidebar-accent text-sidebar-accent-foreground shadow-sm" 
-          : "border-transparent hover:bg-sidebar-accent/50 hover:border-sidebar-border"
+          ? "bg-sidebar-accent text-sidebar-accent-foreground" 
+          : "hover:bg-sidebar-accent/50"
       )}
+      onClick={onSelect}
     >
-      {isEditing ? (
-        <div className="px-3 py-2.5">
-          <input
-            type="text"
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-            onBlur={handleRename}
-            onKeyDown={handleKeyDown}
-            className="w-full text-sm bg-transparent text-sidebar-foreground border-none outline-none focus:ring-0 placeholder:text-sidebar-foreground/50"
+      {/* Chat Title */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm truncate font-normal text-sidebar-foreground">
+          {chat.title}
+        </p>
+      </div>
+
+      {/* Actions Menu - Always visible for debugging */}
+      <div className="flex-shrink-0">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 hover:bg-accent data-[state=open]:bg-accent"
+              onClick={(e) => e.stopPropagation()}
+              aria-label="Chat options"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation()
+              }}
+            >
+              <Share2 className="h-4 w-4 mr-2" />
+              Share
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation()
+                setIsRenameDialogOpen(true)
+              }}
+            >
+              <PenSquare className="h-4 w-4 mr-2" />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation()
+              }}
+            >
+              <Archive className="h-4 w-4 mr-2" />
+              Archive
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete()
+              }}
+              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Rename Dialog */}
+      <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
+        <DialogContent onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Rename chat</DialogTitle>
+            <DialogDescription>
+              Enter a new name for this conversation
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleRename()
+              }
+            }}
+            placeholder="Chat name"
             autoFocus
           />
-        </div>
-      ) : (
-        <div className="relative flex items-start justify-between gap-2 px-3 py-2.5 cursor-pointer rounded-lg">
-          <div 
-            className="flex-1 min-w-0"
-            onClick={onSelect}
-          >
-            <h4 className="text-sm font-medium text-sidebar-foreground truncate mb-1.5">{chat.title}</h4>
-            {chat.lastMessage && (
-              <p className="text-xs text-sidebar-foreground/60 truncate mb-2">
-                {chat.lastMessage}
-              </p>
-            )}
-            <div className="flex items-center gap-2">
-              <Badge 
-                variant="secondary" 
-                className="text-xs px-2 py-0.5 bg-sidebar border-sidebar-border text-sidebar-foreground/70 hover:bg-sidebar hover:text-sidebar-foreground"
-              >
-                {chat.messageCount} messages
-              </Badge>
-              <span className="text-xs text-sidebar-foreground/50">
-                {formatRelativeTime(chat.timestamp)}
-              </span>
-            </div>
-          </div>
-          
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <MoreHorizontal className="h-4 w-4 text-sidebar-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setIsEditing(true)
-                  }}
-                >
-                  <Edit3 className="h-4 w-4 mr-2" />
-                  Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onDelete()
-                  }}
-                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsRenameDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleRename}>
+              Rename
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

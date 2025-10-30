@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useParams, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useMounted } from "@/hooks/use-mounted"
 import { useSocket } from "@/hooks/use-socket"
@@ -17,7 +17,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { ChatMessage, type Message } from "./chat-message"
+import { ChatMessageBubble, type Message } from "./chat-message-bubble"
+import { ChatMessage } from "./chat-message"
 import { ChatInput } from "./chat-input"
 import { Sidebar, type ChatHistory } from "./sidebar"
 import { ThemeToggle } from "../theme-toggle"
@@ -26,18 +27,25 @@ import { cn } from "@/lib/utils"
 
 interface ChatInterfaceProps {
   className?: string
+  showEmptyState?: boolean
 }
 
-export function ChatInterface({ className }: ChatInterfaceProps) {
+export function ChatInterface({ className, showEmptyState }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [chatHistory, setChatHistory] = useState<ChatHistory[]>([])
   const [currentChatId, setCurrentChatId] = useState<string>()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
+  const params = useParams()
+  const pathname = usePathname()
   const { user, signOut } = useAuth()
   const isMounted = useMounted()
+
+  // Get conversationId from URL params
+  const urlConversationId = params?.id as string | undefined
 
   // Socket.IO integration
   const handleMessageReceived = (message: string, toolsUsed?: string[], conversationId?: string) => {
@@ -54,10 +62,15 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
       return [...prev, assistantMessage]
     })
     
-    // Update currentChatId if we got a new conversationId from the server
+    // Update currentChatId and navigate to the conversation URL if we got a new conversationId
     if (conversationId && !currentChatId) {
       setCurrentChatId(conversationId)
       setConversationId(conversationId)
+      
+      // Navigate to the conversation URL
+      if (pathname === '/') {
+        router.push(`/chat/${conversationId}`)
+      }
     }
     
     if (toolsUsed && toolsUsed.length > 0) {
@@ -86,12 +99,26 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     }
   }, [user?.id, isMounted])
 
+  // Load conversation from URL on mount or when URL changes
+  useEffect(() => {
+    if (urlConversationId && urlConversationId !== currentChatId && user?.id && isMounted) {
+      setCurrentChatId(urlConversationId)
+      setConversationId(urlConversationId)
+      loadConversationMessages(urlConversationId)
+    } else if (!urlConversationId && currentChatId) {
+      // If we're on root path, clear current conversation
+      setCurrentChatId(undefined)
+      setConversationId(undefined)
+      setMessages([])
+    }
+  }, [urlConversationId, user?.id, isMounted])
+
   const loadUserConversations = async () => {
     if (!user?.id) return
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3002'}/chat/conversations?userId=${user.id}`
+        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3003'}/chat/conversations?userId=${user.id}`
       )
       
       if (response.ok) {
@@ -110,15 +137,42 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     }
   }
 
+  const loadConversationMessages = async (conversationId: string) => {
+    setIsLoadingHistory(true)
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3003'}/chat/conversations/${conversationId}/messages`
+      )
+      
+      if (response.ok) {
+        const dbMessages = await response.json()
+        const loadedMessages: Message[] = dbMessages.map((msg: any) => ({
+          id: msg.id,
+          content: msg.content,
+          role: msg.role.toLowerCase() as 'user' | 'assistant',
+          timestamp: new Date(msg.createdAt),
+        }))
+        setMessages(loadedMessages)
+      }
+    } catch (error) {
+      console.error('Failed to load conversation history:', error)
+      handleSocketError('Failed to load conversation')
+    } finally {
+      setIsLoadingHistory(false)
+    }
+  }
+
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
-    const scrollArea = scrollAreaRef.current
-    if (scrollArea) {
-      const scrollContainer = scrollArea.querySelector('[data-radix-scroll-area-viewport]')
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight
+    const scrollToBottom = () => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" })
       }
     }
+
+    // Small delay to ensure DOM is updated
+    const timeoutId = setTimeout(scrollToBottom, 100)
+    return () => clearTimeout(timeoutId)
   }, [messages, isTyping])
 
   const handleSendMessage = async (content: string) => {
@@ -149,42 +203,26 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     setMessages([])
     clearSocketConversation()
     setIsMobileMenuOpen(false)
+    
+    // Navigate to root path for new chat
+    router.push('/')
   }
 
   const handleSelectChat = async (chatId: string) => {
     setCurrentChatId(chatId)
     setConversationId(chatId)
     setIsMobileMenuOpen(false)
-    setIsLoadingHistory(true)
-
-    // Load messages for this conversation from database
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3002'}/chat/conversations/${chatId}/messages`
-      )
-      
-      if (response.ok) {
-        const dbMessages = await response.json()
-        const loadedMessages: Message[] = dbMessages.map((msg: any) => ({
-          id: msg.id,
-          content: msg.content,
-          role: msg.role.toLowerCase() as 'user' | 'assistant',
-          timestamp: new Date(msg.createdAt),
-        }))
-        setMessages(loadedMessages)
-      }
-    } catch (error) {
-      console.error('Failed to load conversation history:', error)
-      handleSocketError('Failed to load conversation')
-    } finally {
-      setIsLoadingHistory(false)
-    }
+    
+    // Navigate to the conversation URL
+    router.push(`/chat/${chatId}`)
+    
+    // Load messages will happen automatically via the useEffect watching urlConversationId
   }
 
   const handleDeleteChat = async (chatId: string) => {
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3002'}/chat/conversations/${chatId}`,
+        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3003'}/chat/conversations/${chatId}`,
         { method: 'DELETE' }
       )
       
@@ -202,7 +240,7 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   const handleRenameChat = async (chatId: string, newTitle: string) => {
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3002'}/chat/conversations/${chatId}`,
+        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3003'}/chat/conversations/${chatId}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -382,62 +420,101 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
         </header>
 
         {/* Messages */}
-        <div className="flex-1 overflow-hidden">
-          {messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center space-y-4 max-w-md mx-auto px-4">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-                  <MessageSquare className="h-8 w-8 text-primary" />
+        <div className="flex-1 overflow-hidden bg-background">
+          {messages.length === 0 && showEmptyState ? (
+            <div className="flex items-center justify-center h-full px-4 py-8 sm:px-6 lg:px-8">
+              <div className="text-center space-y-8 max-w-3xl mx-auto w-full">
+                <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mx-auto">
+                  <Sparkles className="h-6 w-6 text-primary" />
                 </div>
                 <div className="space-y-2">
-                  <h2 className="text-xl font-semibold">Start a conversation</h2>
-                  <p className="text-muted-foreground">
-                    Ask me anything or try one of these suggestions:
+                  <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight">
+                    How can I help you today?
+                  </h2>
+                  <p className="text-muted-foreground text-sm sm:text-base">
+                    I'm your AI assistant for Azure FinOps
                   </p>
                 </div>
-                <div className="grid gap-2">
+                <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mt-6 sm:mt-8 w-full max-w-4xl mx-auto">
                   {[
-                    "Explain quantum computing in simple terms",
-                    "Help me plan a weekend project",
-                    "Write a short story about AI",
+                    { 
+                      icon: "💡", 
+                      title: "Explain a concept", 
+                      text: "What is quantum computing?" 
+                    },
+                    { 
+                      icon: "💰", 
+                      title: "Analyze costs", 
+                      text: "Help me analyze my Azure cloud costs" 
+                    },
+                    { 
+                      icon: "🚀", 
+                      title: "Get started", 
+                      text: "How do I optimize my cloud spending?" 
+                    },
                   ].map((suggestion, index) => (
                     <Button
                       key={index}
                       variant="outline"
-                      className="text-left justify-start h-auto p-3 whitespace-normal"
-                      onClick={() => handleSendMessage(suggestion)}
+                      className="h-auto p-3 sm:p-4 flex flex-col items-start gap-1.5 sm:gap-2 hover:bg-accent hover:border-primary/50 transition-all group text-left"
+                      onClick={() => handleSendMessage(suggestion.text)}
                     >
-                      {suggestion}
+                      <span className="text-xl sm:text-2xl">{suggestion.icon}</span>
+                      <span className="font-medium text-xs sm:text-sm group-hover:text-primary transition-colors">
+                        {suggestion.title}
+                      </span>
+                      <span className="text-[11px] sm:text-xs text-muted-foreground line-clamp-2">
+                        {suggestion.text}
+                      </span>
                     </Button>
                   ))}
                 </div>
               </div>
             </div>
+          ) : messages.length === 0 ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center space-y-4 max-w-md mx-auto px-4">
+                <div className="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mx-auto">
+                  <MessageSquare className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-xl font-semibold">Ready to chat</h2>
+                  <p className="text-muted-foreground text-sm">
+                    {isLoadingHistory ? "Loading conversation..." : "Type a message to start the conversation"}
+                  </p>
+                </div>
+              </div>
+            </div>
           ) : (
             <ScrollArea ref={scrollAreaRef} className="h-full">
-              <div className="container mx-auto max-w-4xl space-y-6 py-6 px-4">
+              <div className="pb-4 px-2">
                 {messages.map((message) => (
-                  <ChatMessage
+                  <ChatMessageBubble
                     key={message.id}
                     message={message}
-                    onCopy={handleCopyMessage}
-                    onRegenerate={handleRegenerateMessage}
-                    onFeedback={handleMessageFeedback}
+                    onRegenerate={() => handleRegenerateMessage(message.id)}
                   />
                 ))}
                 
                 {isTyping && (
-                  <div className="flex items-center gap-4 p-4">
-                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                      <div className="w-4 h-4 bg-primary/20 rounded-full animate-pulse" />
+                  <div className="flex gap-3 px-4 py-6 md:px-6">
+                    <div className="flex-shrink-0">
+                      <Avatar className="h-8 w-8 bg-primary">
+                        <AvatarFallback className="bg-primary text-primary-foreground">
+                          <Sparkles className="h-4 w-4" />
+                        </AvatarFallback>
+                      </Avatar>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                      <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                      <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" />
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <div className="w-2 h-2 bg-foreground/60 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                      <div className="w-2 h-2 bg-foreground/60 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                      <div className="w-2 h-2 bg-foreground/60 rounded-full animate-bounce" />
                     </div>
                   </div>
                 )}
+                
+                {/* Scroll anchor */}
+                <div ref={messagesEndRef} className="h-px" />
               </div>
             </ScrollArea>
           )}

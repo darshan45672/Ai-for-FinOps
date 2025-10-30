@@ -103,13 +103,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       let conversation = this.conversations.get(clientId) || {
         messages: [],
         userId: payload.userId,
-        conversationId: payload.conversationId,
+        conversationId: payload.conversationId, // Use conversationId from payload if provided
       };
 
-      // Create new conversation if userId is provided but no conversationId
+      // Update conversationId from payload if provided (user might be continuing an existing conversation)
+      if (payload.conversationId) {
+        conversation.conversationId = payload.conversationId;
+        conversation.userId = payload.userId;
+        this.conversations.set(clientId, conversation);
+      }
+
+      // Create new conversation ONLY if:
+      // 1. User is authenticated (userId exists)
+      // 2. No conversationId exists yet (neither in payload nor in memory)
+      // 3. This is the first message in a new conversation
       if (payload.userId && !conversation.conversationId) {
         try {
-          // Generate a temporary title from the first message
+          // Generate a title from the first message (up to 50 characters)
           const tempTitle = payload.message.substring(0, 50) + (payload.message.length > 50 ? '...' : '');
           
           const createConversationResponse = await firstValueFrom(
