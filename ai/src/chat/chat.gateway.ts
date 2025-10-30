@@ -9,16 +9,21 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
 import { ChatService, ChatMessage } from './chat.service';
 
 interface ChatMessagePayload {
   message: string;
   conversationId?: string;
+  userId?: string;
 }
 
 interface ConversationState {
   messages: ChatMessage[];
   userId?: string;
+  conversationId?: string;
 }
 
 @WebSocketGateway({
@@ -34,8 +39,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private readonly logger = new Logger(ChatGateway.name);
   private conversations: Map<string, ConversationState> = new Map();
+  private readonly databaseServiceUrl: string;
 
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly httpService: HttpService,
+    private readonly configService: ConfigService,
+  ) {
+    this.databaseServiceUrl = this.configService.get<string>(
+      'DATABASE_SERVICE_URL',
+      'http://localhost:3002',
+    );
+  }
 
   /**
    * Handle client connection
@@ -84,13 +99,81 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.log(`Received message from ${clientId}: ${payload.message.substring(0, 50)}...`);
 
     try {
-      // Get conversation state
-      const conversation = this.conversations.get(clientId) || {
+      // Get or create conversation state
+      let conversation = this.conversations.get(clientId) || {
         messages: [],
+        userId: payload.userId,
+        conversationId: payload.conversationId,
       };
+
+      // Create new conversation if userId is provided but no conversationId
+      if (payload.userId && !conversation.conversationId) {
+        try {
+          // Generate a temporary title from the first message
+          const tempTitle = payload.message.substring(0, 50) + (payload.message.length > 50 ? '...' : '');
+          
+          const createConversationResponse = await firstValueFrom(
+            this.httpService.post(`${this.databaseServiceUrl}/chat/conversations`, {
+              title: tempTitle,
+              userId: payload.userId,
+            }),
+          );
+
+          conversation.conversationId = createConversationResponse.data.id;
+          conversation.userId = payload.userId;
+          this.conversations.set(clientId, conversation);
+          
+          this.logger.log(`Created new conversation: ${conversation.conversationId}`);
+        } catch (error) {
+          this.logger.error(`Failed to create conversation: ${error.message}`);
+          // Continue without conversation ID - messages won't be persisted
+        }
+      }
+
+      // If conversationId provided, load conversation history from database
+      if (conversation.conversationId && conversation.messages.length === 0) {
+        try {
+          const messagesResponse = await firstValueFrom(
+            this.httpService.get(
+              `${this.databaseServiceUrl}/chat/conversations/${conversation.conversationId}/messages`,
+            ),
+          );
+
+          if (messagesResponse.data && Array.isArray(messagesResponse.data)) {
+            conversation.messages = messagesResponse.data.map((msg: any) => ({
+              role: msg.role.toLowerCase() as 'user' | 'assistant' | 'system',
+              content: msg.content,
+            }));
+          }
+          
+          this.logger.log(`Loaded ${conversation.messages.length} messages from conversation ${conversation.conversationId}`);
+        } catch (error) {
+          this.logger.warn(`Could not load conversation history: ${error.message}`);
+        }
+      }
 
       // Emit typing indicator
       client.emit('ai_typing', { isTyping: true });
+
+      // Save user message to database
+      if (payload.userId && conversation.conversationId) {
+        try {
+          await firstValueFrom(
+            this.httpService.post(`${this.databaseServiceUrl}/chat/messages`, {
+              conversationId: conversation.conversationId,
+              role: 'USER',
+              content: payload.message,
+            }),
+          );
+          
+          this.logger.log(`Saved user message to conversation ${conversation.conversationId}`);
+        } catch (error) {
+          this.logger.error(`Failed to save user message: ${error.message}`);
+          if (error.response?.data) {
+            this.logger.error(`Error details: ${JSON.stringify(error.response.data)}`);
+          }
+        }
+      }
 
       // Process message with chat service
       const response = await this.chatService.processMessage(
@@ -102,6 +185,31 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       conversation.messages = response.conversationHistory;
       this.conversations.set(clientId, conversation);
 
+      // Save assistant response to database
+      if (payload.userId && conversation.conversationId && response.message && response.message.trim()) {
+        try {
+          const messageData = {
+            conversationId: conversation.conversationId,
+            role: 'ASSISTANT',
+            content: response.message.trim(),
+            toolsUsed: response.toolsUsed && response.toolsUsed.length > 0 ? response.toolsUsed : undefined,
+          };
+          
+          await firstValueFrom(
+            this.httpService.post(`${this.databaseServiceUrl}/chat/messages`, messageData),
+          );
+          
+          this.logger.log(`Saved assistant message to conversation ${conversation.conversationId}`);
+        } catch (error) {
+          this.logger.error(`Failed to save assistant message: ${error.message}`);
+          if (error.response?.data) {
+            this.logger.error(`Error details: ${JSON.stringify(error.response.data)}`);
+          }
+        }
+      } else if (payload.userId && conversation.conversationId && (!response.message || !response.message.trim())) {
+        this.logger.warn(`Skipping save of empty assistant message for conversation ${conversation.conversationId}`);
+      }
+
       // Stop typing indicator
       client.emit('ai_typing', { isTyping: false });
 
@@ -109,6 +217,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.emit('chat_response', {
         message: response.message,
         toolsUsed: response.toolsUsed,
+        conversationId: conversation.conversationId,
         timestamp: new Date().toISOString(),
       });
 

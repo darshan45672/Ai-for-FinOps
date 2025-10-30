@@ -15,6 +15,7 @@ interface ChatMessage {
 interface ChatResponse {
   message: string
   toolsUsed?: string[]
+  conversationId?: string
   timestamp: string
 }
 
@@ -38,20 +39,23 @@ interface UseSocketReturn {
   socket: Socket | null
   isConnected: boolean
   isTyping: boolean
-  sendMessage: (message: string) => void
+  sendMessage: (message: string, conversationId?: string) => void
   clearConversation: () => void
   getHistory: () => void
   disconnect: () => void
   connect: () => void
+  conversationId?: string
+  setConversationId: (id: string | undefined) => void
 }
 
 export function useSocket(
-  onMessageReceived: (message: string, toolsUsed?: string[]) => void,
+  onMessageReceived: (message: string, toolsUsed?: string[], conversationId?: string) => void,
   onError?: (error: string) => void,
   options: UseSocketOptions = { autoConnect: true }
 ): UseSocketReturn {
   const [isConnected, setIsConnected] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
+  const [conversationId, setConversationId] = useState<string | undefined>(undefined)
   const socketRef = useRef<Socket | null>(null)
   const { user } = useAuth()
 
@@ -98,7 +102,13 @@ export function useSocket(
     socket.on('chat_response', (data: ChatResponse) => {
       console.log('Received chat response:', data)
       setIsTyping(false)
-      onMessageReceived(data.message, data.toolsUsed)
+      
+      // Update conversationId if provided in response
+      if (data.conversationId && !conversationId) {
+        setConversationId(data.conversationId)
+      }
+      
+      onMessageReceived(data.message, data.toolsUsed, data.conversationId)
     })
 
     socket.on('ai_typing', (data: { isTyping: boolean }) => {
@@ -135,7 +145,7 @@ export function useSocket(
     }
   }, [])
 
-  const sendMessage = useCallback((message: string) => {
+  const sendMessage = useCallback((message: string, convId?: string) => {
     if (!socketRef.current?.connected) {
       onError?.('Not connected to chat service')
       return
@@ -143,9 +153,10 @@ export function useSocket(
 
     socketRef.current.emit('chat_message', {
       message,
-      conversationId: undefined, // Can be added for conversation management
+      conversationId: convId || conversationId,
+      userId: user?.id,
     })
-  }, [onError])
+  }, [onError, conversationId, user?.id])
 
   const clearConversation = useCallback(() => {
     if (!socketRef.current?.connected) {
@@ -184,5 +195,7 @@ export function useSocket(
     getHistory,
     disconnect,
     connect,
+    conversationId,
+    setConversationId,
   }
 }

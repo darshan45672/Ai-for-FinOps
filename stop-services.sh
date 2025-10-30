@@ -18,6 +18,7 @@ FRONTEND_PORT=3000
 AUTH_PORT=3001
 DATABASE_PORT=3002
 BACKEND_PORT=3003
+AI_SERVICE_PORT=3004
 
 stop_service() {
     local port=$1
@@ -42,6 +43,7 @@ stop_service $FRONTEND_PORT "Frontend"
 stop_service $AUTH_PORT "Authentication"
 stop_service $DATABASE_PORT "Database"
 stop_service $BACKEND_PORT "Backend"
+stop_service $AI_SERVICE_PORT "AI Service"
 
 echo ""
 echo "${GREEN}All services stopped${NC}"

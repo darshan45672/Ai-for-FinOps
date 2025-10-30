@@ -33,13 +33,14 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   const [chatHistory, setChatHistory] = useState<ChatHistory[]>([])
   const [currentChatId, setCurrentChatId] = useState<string>()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const { user, signOut } = useAuth()
   const isMounted = useMounted()
 
   // Socket.IO integration
-  const handleMessageReceived = (message: string, toolsUsed?: string[]) => {
+  const handleMessageReceived = (message: string, toolsUsed?: string[], conversationId?: string) => {
     const assistantMessage: Message = {
       id: `assistant-${Date.now()}`,
       content: message,
@@ -52,6 +53,12 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
       updateChatHistory(lastMessage, assistantMessage)
       return [...prev, assistantMessage]
     })
+    
+    // Update currentChatId if we got a new conversationId from the server
+    if (conversationId && !currentChatId) {
+      setCurrentChatId(conversationId)
+      setConversationId(conversationId)
+    }
     
     if (toolsUsed && toolsUsed.length > 0) {
       console.log('Tools used:', toolsUsed)
@@ -67,8 +74,41 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     isConnected, 
     isTyping, 
     sendMessage: sendSocketMessage,
-    clearConversation: clearSocketConversation 
+    clearConversation: clearSocketConversation,
+    conversationId,
+    setConversationId,
   } = useSocket(handleMessageReceived, handleSocketError)
+
+  // Load user's conversations on mount
+  useEffect(() => {
+    if (user?.id && isMounted) {
+      loadUserConversations()
+    }
+  }, [user?.id, isMounted])
+
+  const loadUserConversations = async () => {
+    if (!user?.id) return
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3002'}/chat/conversations?userId=${user.id}`
+      )
+      
+      if (response.ok) {
+        const conversations = await response.json()
+        const history: ChatHistory[] = conversations.map((conv: any) => ({
+          id: conv.id,
+          title: conv.title,
+          lastMessage: conv.lastMessage?.content || '',
+          timestamp: new Date(conv.updatedAt),
+          messageCount: conv.messageCount || 0,
+        }))
+        setChatHistory(history)
+      }
+    } catch (error) {
+      console.error('Failed to load conversations:', error)
+    }
+  }
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -95,8 +135,8 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     setMessages((prev) => [...prev, userMessage])
 
     try {
-      // Send message via Socket.IO
-      sendSocketMessage(content)
+      // Send message via Socket.IO with conversationId if available
+      sendSocketMessage(content, conversationId)
     } catch (error) {
       console.error("Error sending message:", error)
       handleSocketError('Failed to send message')
@@ -104,34 +144,82 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
   }
 
   const handleNewChat = () => {
-    const newChatId = `chat-${Date.now()}`
-    setCurrentChatId(newChatId)
+    setCurrentChatId(undefined)
+    setConversationId(undefined)
     setMessages([])
     clearSocketConversation()
     setIsMobileMenuOpen(false)
   }
 
-  const handleSelectChat = (chatId: string) => {
+  const handleSelectChat = async (chatId: string) => {
     setCurrentChatId(chatId)
-    // In a real app, load messages for this chat
-    setMessages([])
-    clearSocketConversation()
+    setConversationId(chatId)
     setIsMobileMenuOpen(false)
-  }
+    setIsLoadingHistory(true)
 
-  const handleDeleteChat = (chatId: string) => {
-    setChatHistory((prev) => prev.filter((chat) => chat.id !== chatId))
-    if (currentChatId === chatId) {
-      handleNewChat()
+    // Load messages for this conversation from database
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3002'}/chat/conversations/${chatId}/messages`
+      )
+      
+      if (response.ok) {
+        const dbMessages = await response.json()
+        const loadedMessages: Message[] = dbMessages.map((msg: any) => ({
+          id: msg.id,
+          content: msg.content,
+          role: msg.role.toLowerCase() as 'user' | 'assistant',
+          timestamp: new Date(msg.createdAt),
+        }))
+        setMessages(loadedMessages)
+      }
+    } catch (error) {
+      console.error('Failed to load conversation history:', error)
+      handleSocketError('Failed to load conversation')
+    } finally {
+      setIsLoadingHistory(false)
     }
   }
 
-  const handleRenameChat = (chatId: string, newTitle: string) => {
-    setChatHistory((prev) =>
-      prev.map((chat) =>
-        chat.id === chatId ? { ...chat, title: newTitle } : chat
+  const handleDeleteChat = async (chatId: string) => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3002'}/chat/conversations/${chatId}`,
+        { method: 'DELETE' }
       )
-    )
+      
+      if (response.ok) {
+        setChatHistory((prev) => prev.filter((chat) => chat.id !== chatId))
+        if (currentChatId === chatId) {
+          handleNewChat()
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete conversation:', error)
+    }
+  }
+
+  const handleRenameChat = async (chatId: string, newTitle: string) => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_DATABASE_SERVICE_URL || 'http://localhost:3002'}/chat/conversations/${chatId}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: newTitle }),
+        }
+      )
+      
+      if (response.ok) {
+        setChatHistory((prev) =>
+          prev.map((chat) =>
+            chat.id === chatId ? { ...chat, title: newTitle } : chat
+          )
+        )
+      }
+    } catch (error) {
+      console.error('Failed to rename conversation:', error)
+    }
   }
 
   const handleCopyMessage = async (content: string) => {
@@ -161,33 +249,11 @@ export function ChatInterface({ className }: ChatInterfaceProps) {
     // Implement feedback handling
   }
 
-  const updateChatHistory = (userMessage: Message, assistantMessage: Message) => {
-    if (!currentChatId) return
+  const updateChatHistory = async (userMessage: Message, assistantMessage: Message) => {
+    if (!currentChatId || !user?.id) return
 
-    const existingChatIndex = chatHistory.findIndex(
-      (chat) => chat.id === currentChatId
-    )
-
-    const title = userMessage.content.slice(0, 50) + 
-                 (userMessage.content.length > 50 ? "..." : "")
-    
-    const updatedChat: ChatHistory = {
-      id: currentChatId,
-      title,
-      lastMessage: assistantMessage.content.slice(0, 100),
-      timestamp: new Date(),
-      messageCount: messages.length + 2, // +2 for the new messages
-    }
-
-    if (existingChatIndex >= 0) {
-      setChatHistory((prev) => [
-        updatedChat,
-        ...prev.slice(0, existingChatIndex),
-        ...prev.slice(existingChatIndex + 1),
-      ])
-    } else {
-      setChatHistory((prev) => [updatedChat, ...prev])
-    }
+    // Reload conversations to get the updated list from database
+    await loadUserConversations()
   }
 
   return (

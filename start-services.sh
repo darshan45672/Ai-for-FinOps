@@ -20,6 +20,7 @@ FRONTEND_PORT=3000
 AUTH_PORT=3001
 DATABASE_PORT=3002
 BACKEND_PORT=3003
+AI_PORT=3004
 
 # Kill any existing processes on these ports
 echo "${YELLOW}Cleaning up existing processes...${NC}"
@@ -27,6 +28,7 @@ lsof -ti:$FRONTEND_PORT | xargs kill -9 2>/dev/null
 lsof -ti:$AUTH_PORT | xargs kill -9 2>/dev/null
 lsof -ti:$DATABASE_PORT | xargs kill -9 2>/dev/null
 lsof -ti:$BACKEND_PORT | xargs kill -9 2>/dev/null
+lsof -ti:$AI_PORT | xargs kill -9 2>/dev/null
 sleep 2
 
 echo ""
@@ -63,6 +65,15 @@ cd frontend
 npm run dev > ../logs/frontend.log 2>&1 &
 FRONTEND_PID=$!
 cd ..
+
+#Start AI Service
+echo "${BLUE}5. Starting AI Service on port ${AI_PORT}...${NC}"
+cd ai
+npm run start:dev > ../logs/ai.log 2>&1 &
+AI_PID=$!
+cd ..
+
+
 sleep 3
 
 echo ""
@@ -75,6 +86,7 @@ echo "  ${GREEN}Frontend:${NC}        http://localhost:${FRONTEND_PORT}"
 echo "  ${GREEN}Authentication:${NC}  http://localhost:${AUTH_PORT}"
 echo "  ${GREEN}Database:${NC}        http://localhost:${DATABASE_PORT}"
 echo "  ${GREEN}Backend (Azure):${NC} http://localhost:${BACKEND_PORT}"
+echo "  ${GREEN}AI Service:${NC}      http://localhost:${AI_PORT}"
 echo ""
 echo "Process IDs:"
 echo "  Database:       ${DATABASE_PID}"

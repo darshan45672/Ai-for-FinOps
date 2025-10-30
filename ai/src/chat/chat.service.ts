@@ -149,11 +149,19 @@ export class ChatService {
         model: this.ollamaService.getDefaultModel(),
         messages: ollamaMessages,
         tools: formattedTools,
+        stream: false, // Disable streaming to get complete response
         options: {
           temperature: 0.7,
           num_predict: 2000,
         },
       });
+
+      // Log response for debugging
+      this.logger.debug(`Ollama response structure: ${JSON.stringify({ 
+        hasMessage: !!response.message,
+        hasContent: !!response.message?.content,
+        content: response.message?.content?.substring(0, 100) 
+      })}`);
 
       // Check if AI wants to call tools
       if (response.message && response.message.tool_calls) {
@@ -170,9 +178,16 @@ export class ChatService {
         };
       }
 
+      // Extract content from response
+      const content = response.message?.content || (response as any).content || (response as any).response || '';
+      
+      if (!content) {
+        this.logger.warn('Empty response from Ollama, full response:', JSON.stringify(response));
+      }
+
       return {
-        content: response.message?.content || '',
-        message: response.message?.content || '',
+        content,
+        message: content,
       };
     } catch (error) {
       this.logger.error('Error calling Ollama:', error);
@@ -186,6 +201,7 @@ export class ChatService {
       const response = await this.ollamaService.chat({
         model: this.ollamaService.getDefaultModel(),
         messages: ollamaMessages,
+        stream: false, // Disable streaming to get complete response
         options: {
           temperature: 0.7,
         },
