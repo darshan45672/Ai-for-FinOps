@@ -19,6 +19,10 @@ import {
   ConversationWithMessagesDto,
   MessageResponseDto,
 } from './dto/chat.dto';
+import {
+  CreateContextSnapshotDto,
+  ContextSnapshotResponseDto,
+} from './dto/context-snapshot.dto';
 
 @Controller('chat')
 export class ChatController {
@@ -126,5 +130,43 @@ export class ChatController {
       conversationId,
       limit ? parseInt(limit.toString(), 10) : undefined,
     );
+  }
+
+  /**
+   * Create a context snapshot for a message
+   * POST /chat/context-snapshots
+   */
+  @Post('context-snapshots')
+  async createContextSnapshot(@Body() data: {
+    messageId: string;
+    userPreferences?: Record<string, any>;
+    azureState?: Record<string, any>;
+    conversationMetadata?: Record<string, any>;
+    historicalData?: Record<string, any>;
+    relevantDocs?: Record<string, any>;
+    availableTools?: Record<string, any>;
+    fullContext?: Record<string, any>;
+  }): Promise<any> {
+    return this.chatService.createContextSnapshot(data);
+  }
+
+  /**
+   * Get context snapshot by message ID
+   * GET /chat/context-snapshots/:messageId
+   */
+  @Get('context-snapshots/:messageId')
+  async getContextSnapshot(@Param('messageId') messageId: string): Promise<any> {
+    return this.chatService.getContextSnapshotByMessageId(messageId);
+  }
+
+  /**
+   * Get all context snapshots for a conversation
+   * GET /chat/conversations/:id/context-snapshots
+   */
+  @Get('conversations/:id/context-snapshots')
+  async getConversationContextSnapshots(
+    @Param('id') conversationId: string,
+  ): Promise<any[]> {
+    return this.chatService.getContextSnapshotsByConversationId(conversationId);
   }
 }

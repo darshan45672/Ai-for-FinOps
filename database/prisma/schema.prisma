@@ -275,10 +275,10 @@ model Conversation {
   updatedAt DateTime @updatedAt
 
   // Relations
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages        Message[]
-  recommendations Recommendation[]
-  aiActions       AiAction[]
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages         Message[]
+  recommendations  Recommendation[]
+  aiActions        AiAction[]
 
   @@index([userId])
   @@index([createdAt])
@@ -296,11 +296,48 @@ model Message {
   createdAt DateTime @default(now())
 
   // Relations
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation   Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  contextSnapshot ContextSnapshot?
 
   @@index([conversationId])
   @@index([createdAt])
   @@map("messages")
+}
+
+// Rich Context Snapshots - Store full context for each AI interaction
+model ContextSnapshot {
+  id        String @id @default(cuid())
+  messageId String @unique
+  
+  // User Context
+  userPreferences Json? // defaultSubscriptionId, defaultRegion, costAlertThreshold, etc.
+  
+  // Azure Context
+  azureState Json? // currentCosts, resourceCount, activeAlerts, subscription info
+  
+  // Conversation Context
+  conversationMetadata Json? // recentTopics, entitiesDiscussed, pendingActions
+  
+  // Historical Context
+  historicalData Json? // costTrends, past recommendations
+  
+  // Documentation Context
+  relevantDocs Json? // Context7 best practices, code examples
+  
+  // Tool Context
+  availableTools Json? // List of tools that were available at time of interaction
+  
+  // Full snapshot for debugging
+  fullContext Json? // Complete RichContext object
+  
+  createdAt DateTime @default(now())
+  
+  // Relations
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  
+  @@index([messageId])
+  @@index([createdAt])
+  @@map("context_snapshots")
 }
 
 // Context Engineering Models

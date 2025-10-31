@@ -6,6 +6,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
 import { AzureModule } from './azure/azure.module';
 import { ChatModule } from './chat/chat.module';
+import { CostSnapshotModule } from './cost-snapshots/cost-snapshot.module';
+import { RecommendationModule } from './recommendations/recommendation.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { ChatModule } from './chat/chat.module';
     UsersModule,
     AzureModule,
     ChatModule,
+    CostSnapshotModule,
+    RecommendationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

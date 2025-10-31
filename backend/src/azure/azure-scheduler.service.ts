@@ -364,4 +364,122 @@ export class AzureSchedulerService {
       this.logger.error(`Failed to update sync log: ${error.message}`);
     }
   }
+
+  /**
+   * Collect daily cost snapshots for all users
+   * Cron expression: Every day at midnight UTC (00:00)
+   * This provides historical cost data for AI context
+   */
+  @Cron('0 0 * * *', {
+    name: 'daily-cost-snapshot',
+    timeZone: 'UTC',
+  })
+  async collectDailyCostSnapshots() {
+    if (!this.azureService.isConfigured()) {
+      this.logger.warn('Azure credentials not configured. Skipping cost snapshot.');
+      return;
+    }
+
+    this.logger.log('Starting daily cost snapshot collection...');
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    try {
+      // Get all users from database
+      const usersResponse = await firstValueFrom(
+        this.httpService.get(`${this.databaseServiceUrl}/users`),
+      );
+      const users = usersResponse.data;
+      this.logger.log(`Collecting cost snapshots for ${users.length} users`);
+
+      // Get all subscriptions
+      const subscriptions = await this.azureService.getSubscriptions();
+
+      for (const user of users) {
+        for (const subscription of subscriptions) {
+          try {
+            // Fetch cost data for yesterday
+            const costResult = await this.azureService.getCostData(
+              subscription.subscriptionId,
+              yesterday,
+              today,
+            );
+
+            // Extract rows from QueryResult
+            const rows = costResult.rows || [];
+            
+            // Calculate total cost (PreTaxCost is typically in the first column)
+            let totalCost = 0;
+            const serviceBreakdown: Record<string, number> = {};
+            const resourceCosts: Array<{name: string; cost: number}> = [];
+
+            rows.forEach((row: any[]) => {
+              // row format: [cost, resourceGroup, serviceName]
+              const cost = parseFloat(row[0]) || 0;
+              const resourceGroup = row[1] || 'Unknown';
+              const serviceName = row[2] || 'Other';
+              
+              totalCost += cost;
+              serviceBreakdown[serviceName] = (serviceBreakdown[serviceName] || 0) + cost;
+              resourceCosts.push({ name: resourceGroup, cost });
+            });
+
+            // Get top 10 resources by cost
+            const topResources = resourceCosts
+              .sort((a, b) => b.cost - a.cost)
+              .slice(0, 10)
+              .map(item => ({
+                name: item.name,
+                cost: item.cost,
+                type: 'ResourceGroup',
+              }));
+
+            // Save cost snapshot to database
+            await this.saveCostSnapshot({
+              userId: user.id,
+              subscriptionId: subscription.subscriptionId,
+              date: yesterday,
+              totalCost,
+              serviceBreakdown,
+              topResources,
+            });
+
+            this.logger.log(
+              `Saved cost snapshot for user ${user.username}, subscription ${subscription.displayName}: $${totalCost.toFixed(2)}`
+            );
+          } catch (error: any) {
+            this.logger.error(
+              `Failed to collect cost snapshot for user ${user.username}, subscription ${subscription.subscriptionId}: ${error.message}`
+            );
+          }
+        }
+      }
+
+      this.logger.log('Daily cost snapshot collection completed');
+    } catch (error: any) {
+      this.logger.error(`Failed to collect daily cost snapshots: ${error.message}`);
+    }
+  }
+
+  /**
+   * Save cost snapshot to database
+   */
+  private async saveCostSnapshot(data: {
+    userId: string;
+    subscriptionId: string;
+    date: Date;
+    totalCost: number;
+    serviceBreakdown: Record<string, number>;
+    topResources: any[];
+  }) {
+    try {
+      await firstValueFrom(
+        this.httpService.post(`${this.databaseServiceUrl}/cost-snapshots`, data),
+      );
+    } catch (error: any) {
+      this.logger.error(`Failed to save cost snapshot: ${error.message}`);
+      throw error;
+    }
+  }
 }

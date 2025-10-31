@@ -318,4 +318,129 @@ export class ChatService {
       });
     }
   }
+
+  /**
+   * Create a context snapshot for a message
+   */
+  async createContextSnapshot(data: {
+    messageId: string;
+    userPreferences?: Record<string, any>;
+    azureState?: Record<string, any>;
+    conversationMetadata?: Record<string, any>;
+    historicalData?: Record<string, any>;
+    relevantDocs?: Record<string, any>;
+    availableTools?: Record<string, any>;
+    fullContext?: Record<string, any>;
+  }): Promise<any> {
+    this.logger.log(`Creating context snapshot for message ${data.messageId}`);
+
+    // Verify message exists
+    const message = await this.prisma.message.findUnique({
+      where: { id: data.messageId },
+    });
+
+    if (!message) {
+      throw new NotFoundException(`Message ${data.messageId} not found`);
+    }
+
+    const snapshot = await this.prisma.contextSnapshot.create({
+      data: {
+        messageId: data.messageId,
+        userPreferences: data.userPreferences || Prisma.JsonNull,
+        azureState: data.azureState || Prisma.JsonNull,
+        conversationMetadata: data.conversationMetadata || Prisma.JsonNull,
+        historicalData: data.historicalData || Prisma.JsonNull,
+        relevantDocs: data.relevantDocs || Prisma.JsonNull,
+        availableTools: data.availableTools || Prisma.JsonNull,
+        fullContext: data.fullContext || Prisma.JsonNull,
+      },
+    });
+
+    return {
+      id: snapshot.id,
+      messageId: snapshot.messageId,
+      userPreferences: snapshot.userPreferences,
+      azureState: snapshot.azureState,
+      conversationMetadata: snapshot.conversationMetadata,
+      historicalData: snapshot.historicalData,
+      relevantDocs: snapshot.relevantDocs,
+      availableTools: snapshot.availableTools,
+      fullContext: snapshot.fullContext,
+      createdAt: snapshot.createdAt,
+    };
+  }
+
+  /**
+   * Get context snapshot by message ID
+   */
+  async getContextSnapshotByMessageId(messageId: string): Promise<any | null> {
+    this.logger.log(`Fetching context snapshot for message ${messageId}`);
+
+    const snapshot = await this.prisma.contextSnapshot.findUnique({
+      where: { messageId },
+    });
+
+    if (!snapshot) {
+      return null;
+    }
+
+    return {
+      id: snapshot.id,
+      messageId: snapshot.messageId,
+      userPreferences: snapshot.userPreferences,
+      azureState: snapshot.azureState,
+      conversationMetadata: snapshot.conversationMetadata,
+      historicalData: snapshot.historicalData,
+      relevantDocs: snapshot.relevantDocs,
+      availableTools: snapshot.availableTools,
+      fullContext: snapshot.fullContext,
+      createdAt: snapshot.createdAt,
+    };
+  }
+
+  /**
+   * Get all context snapshots for a conversation
+   */
+  async getContextSnapshotsByConversationId(
+    conversationId: string,
+  ): Promise<any[]> {
+    this.logger.log(
+      `Fetching context snapshots for conversation ${conversationId}`,
+    );
+
+    const snapshots = await this.prisma.contextSnapshot.findMany({
+      where: {
+        message: {
+          conversationId,
+        },
+      },
+      include: {
+        message: {
+          select: {
+            id: true,
+            role: true,
+            content: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    return snapshots.map((snapshot) => ({
+      id: snapshot.id,
+      messageId: snapshot.messageId,
+      message: snapshot.message,
+      userPreferences: snapshot.userPreferences,
+      azureState: snapshot.azureState,
+      conversationMetadata: snapshot.conversationMetadata,
+      historicalData: snapshot.historicalData,
+      relevantDocs: snapshot.relevantDocs,
+      availableTools: snapshot.availableTools,
+      fullContext: snapshot.fullContext,
+      createdAt: snapshot.createdAt,
+    }));
+  }
 }
