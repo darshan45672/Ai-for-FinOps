@@ -20,8 +20,6 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@azure/ai-agents": "^1.1.0",
-    "@azure/identity": "^4.13.0",
     "@google/genai": "^1.28.0",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.0.1",
