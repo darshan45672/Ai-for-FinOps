@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
 import { AzureModule } from './azure/azure.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AzureModule } from './azure/azure.module';
     PrismaModule,
     UsersModule,
     AzureModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],
