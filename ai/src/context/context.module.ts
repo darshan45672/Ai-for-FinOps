@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { ContextService } from './context.service';
 import { Context7Module } from '../context7/context7.module';
+import { AzureMcpGatewayModule } from '../mcp/azure-mcp-gateway.module';
 
 /**
  * Context Module
@@ -14,7 +15,7 @@ import { Context7Module } from '../context7/context7.module';
  * - Conversation history tracking
  * - Historical trend analysis
  * - RAG with Context7
- * - Tool availability discovery
+ * - Tool availability discovery via Azure MCP Gateway
  * - Smart caching (5-10 min TTL)
  */
 @Module({
@@ -24,6 +25,7 @@ import { Context7Module } from '../context7/context7.module';
       maxRedirects: 5,
     }),
     Context7Module,
+    AzureMcpGatewayModule,
   ],
   providers: [ContextService],
   exports: [ContextService],

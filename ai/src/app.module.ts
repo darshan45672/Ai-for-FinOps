@@ -6,6 +6,9 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { McpModule } from './mcp/mcp.module';
 import { ChatModule } from './chat/chat.module';
+import { AzureMcpGatewayModule } from './mcp/azure-mcp-gateway.module';
+import { Context7Module } from './context7/context7.module';
+import { ContextModule } from './context/context.module';
 
 /**
  * Application Root Module
@@ -14,6 +17,9 @@ import { ChatModule } from './chat/chat.module';
  * - ConfigModule: Global configuration management
  * - CacheModule: Redis-based caching for performance optimization
  * - McpModule: Model Context Protocol tools
+ * - AzureMcpGatewayModule: Azure MCP dynamic tool discovery
+ * - Context7Module: Context7 RAG for Azure documentation
+ * - ContextModule: Rich context engineering service
  * - ChatModule: WebSocket chat with Gemini AI and context engineering
  */
 @Module({
@@ -36,6 +42,9 @@ import { ChatModule } from './chat/chat.module';
     }),
     McpModule,
     ChatModule,
+    AzureMcpGatewayModule,
+    Context7Module,
+    ContextModule,
   ],
   controllers: [AppController],
   providers: [AppService],

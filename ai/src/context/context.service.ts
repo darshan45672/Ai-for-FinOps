@@ -4,6 +4,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { firstValueFrom } from 'rxjs';
 import { Context7Service } from '../context7/context7.service';
+import { AzureMcpGatewayService } from '../mcp/azure-mcp-gateway.service';
 import {
   RichContext,
   UserContext,
@@ -45,6 +46,7 @@ export class ContextService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private httpService: HttpService,
     private context7Service: Context7Service,
+    private azureMcpGateway: AzureMcpGatewayService,
   ) {}
 
   /**
@@ -353,9 +355,18 @@ export class ContextService {
     this.logger.debug('Fetching tool context');
 
     try {
-      // This will be populated by Azure MCP Gateway in later phase
+      // Discover all available Azure MCP tools
+      const azureTools = await this.azureMcpGateway.discoverAllTools();
+      
+      this.logger.debug(`Discovered ${azureTools.length} Azure MCP tools`);
+
       return {
-        available: [],
+        available: azureTools.map(tool => ({
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters,
+          category: 'azure-mcp' as const,
+        })),
         recentlyUsed: [],
         executionStats: {},
       };
