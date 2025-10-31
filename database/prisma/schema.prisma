@@ -38,18 +38,18 @@ model User {
   role          UserRole   @default(USER)
   status        UserStatus @default(ACTIVE)
   emailVerified Boolean    @default(false)
-  
+
   // Context Engineering - User Preferences
   defaultSubscriptionId   String?
   defaultRegion           String?
-  costAlertThreshold      Decimal?  @db.Decimal(10, 2)
+  costAlertThreshold      Decimal? @db.Decimal(10, 2)
   notificationPreferences Json?
-  
+
   // Timestamps
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  lastLoginAt   DateTime?
-  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
   // Relations
   refreshTokens       RefreshToken[]
   sessions            Session[]
@@ -58,7 +58,7 @@ model User {
   costSnapshots       CostSnapshot[]
   recommendations     Recommendation[]
   budgets             Budget[]
-  
+
   @@index([email])
   @@index([username])
   @@index([githubId])
@@ -71,9 +71,9 @@ model RefreshToken {
   userId    String
   expiresAt DateTime
   createdAt DateTime @default(now())
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@index([token])
   @@index([userId])
   @@map("refresh_tokens")
@@ -88,9 +88,9 @@ model Session {
   expiresAt DateTime
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@index([token])
   @@index([userId])
   @@map("sessions")
@@ -102,9 +102,9 @@ model PasswordResetToken {
   userId    String
   expiresAt DateTime
   createdAt DateTime @default(now())
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@index([token])
   @@index([userId])
   @@map("password_reset_tokens")
@@ -132,45 +132,45 @@ enum AzureResourceStatus {
 }
 
 model AzureSubscription {
-  id             String   @id @default(cuid())
-  subscriptionId String   @unique
+  id             String @id @default(cuid())
+  subscriptionId String @unique
   displayName    String
   tenantId       String
   state          String
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  resources      AzureResource[]
-  costRecords    AzureCostRecord[]
-  
+  resources   AzureResource[]
+  costRecords AzureCostRecord[]
+
   @@index([subscriptionId])
   @@index([tenantId])
   @@map("azure_subscriptions")
 }
 
 model AzureResource {
-  id             String             @id @default(cuid())
-  resourceId     String             @unique
+  id             String              @id @default(cuid())
+  resourceId     String              @unique
   name           String
   type           AzureResourceType
-  resourceType   String             // Full Azure resource type
+  resourceType   String // Full Azure resource type
   location       String
   resourceGroup  String
   subscriptionId String
   status         AzureResourceStatus @default(UNKNOWN)
   sku            String?
-  tags           Json?              // Store tags as JSON
-  properties     Json?              // Store additional properties as JSON
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  lastSyncedAt   DateTime @default(now())
-  
+  tags           Json? // Store tags as JSON
+  properties     Json? // Store additional properties as JSON
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastSyncedAt DateTime @default(now())
+
   // Relations
-  subscription   AzureSubscription @relation(fields: [subscriptionId], references: [subscriptionId], onDelete: Cascade)
-  
+  subscription AzureSubscription @relation(fields: [subscriptionId], references: [subscriptionId], onDelete: Cascade)
+
   @@index([resourceId])
   @@index([subscriptionId])
   @@index([resourceGroup])
@@ -192,12 +192,12 @@ model AzureCostRecord {
   currency       String   @default("USD")
   quantity       Float?
   unitOfMeasure  String?
-  
-  createdAt      DateTime @default(now())
-  
+
+  createdAt DateTime @default(now())
+
   // Relations
-  subscription   AzureSubscription @relation(fields: [subscriptionId], references: [subscriptionId], onDelete: Cascade)
-  
+  subscription AzureSubscription @relation(fields: [subscriptionId], references: [subscriptionId], onDelete: Cascade)
+
   @@index([subscriptionId])
   @@index([resourceGroup])
   @@index([usageStart])
@@ -206,14 +206,14 @@ model AzureCostRecord {
 }
 
 model AzureSyncLog {
-  id             String   @id @default(cuid())
-  syncType       String   // 'resources', 'costs', or 'activity_logs'
-  status         String   // 'success', 'failed', 'in_progress'
-  startedAt      DateTime @default(now())
-  completedAt    DateTime?
-  recordsSync    Int?
-  errorMessage   String?
-  
+  id           String    @id @default(cuid())
+  syncType     String // 'resources', 'costs', or 'activity_logs'
+  status       String // 'success', 'failed', 'in_progress'
+  startedAt    DateTime  @default(now())
+  completedAt  DateTime?
+  recordsSync  Int?
+  errorMessage String?
+
   @@index([syncType])
   @@index([status])
   @@index([startedAt])
@@ -222,31 +222,31 @@ model AzureSyncLog {
 
 // Azure Activity Logs for audit trail and operations monitoring
 model AzureActivityLog {
-  id                 String   @id @default(cuid())
-  subscriptionId     String
-  eventTimestamp     DateTime
-  eventDataId        String   @unique
-  correlationId      String?
-  operationName      String
-  operationId        String?
-  level              String   // Informational, Warning, Error, Critical
-  status             String?  // Started, Succeeded, Failed
-  subStatus          String?
-  caller             String?  // User or service principal who initiated the operation
-  category           String   // Administrative, Security, ServiceHealth, Alert, etc.
-  resourceId         String?
-  resourceGroupName  String?
-  resourceType       String?
+  id                   String   @id @default(cuid())
+  subscriptionId       String
+  eventTimestamp       DateTime
+  eventDataId          String   @unique
+  correlationId        String?
+  operationName        String
+  operationId          String?
+  level                String // Informational, Warning, Error, Critical
+  status               String? // Started, Succeeded, Failed
+  subStatus            String?
+  caller               String? // User or service principal who initiated the operation
+  category             String // Administrative, Security, ServiceHealth, Alert, etc.
+  resourceId           String?
+  resourceGroupName    String?
+  resourceType         String?
   resourceProviderName String?
-  eventName          String?
-  description        String?
-  httpRequest        Json?    // HTTP request details
-  authorization      Json?    // Authorization details
-  claims             Json?    // Claims from the token
-  properties         Json?    // Additional properties
-  
-  createdAt          DateTime @default(now())
-  
+  eventName            String?
+  description          String?
+  httpRequest          Json? // HTTP request details
+  authorization        Json? // Authorization details
+  claims               Json? // Claims from the token
+  properties           Json? // Additional properties
+
+  createdAt DateTime @default(now())
+
   @@index([subscriptionId])
   @@index([eventTimestamp])
   @@index([operationName])
@@ -265,21 +265,21 @@ enum MessageRole {
 }
 
 model Conversation {
-  id          String   @id @default(cuid())
-  title       String
-  userId      String
-  isActive    Boolean  @default(true)
-  metadata    Json?    // Store current_topic, entities_discussed, pending_actions
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id       String  @id @default(cuid())
+  title    String
+  userId   String
+  isActive Boolean @default(true)
+  metadata Json? // Store current_topic, entities_discussed, pending_actions
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages        Message[]
   recommendations Recommendation[]
   aiActions       AiAction[]
-  
+
   @@index([userId])
   @@index([createdAt])
   @@map("conversations")
@@ -292,12 +292,12 @@ model Message {
   content        String      @db.Text
   toolsUsed      String[]    @default([])
   tokensUsed     Int?
-  
-  createdAt      DateTime    @default(now())
-  
+
+  createdAt DateTime @default(now())
+
   // Relations
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
   @@index([conversationId])
   @@index([createdAt])
   @@map("messages")
@@ -312,13 +312,13 @@ model CostSnapshot {
   subscriptionId   String
   date             DateTime @db.Date
   totalCost        Decimal  @db.Decimal(10, 2)
-  serviceBreakdown Json?    // { "compute": 450, "storage": 200, ... }
-  topResources     Json?    // [{ name, cost, type }, ...]
-  
-  createdAt        DateTime @default(now())
-  
+  serviceBreakdown Json? // { "compute": 450, "storage": 200, ... }
+  topResources     Json? // [{ name, cost, type }, ...]
+
+  createdAt DateTime @default(now())
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@unique([subscriptionId, date])
   @@index([userId])
   @@index([subscriptionId])
@@ -352,14 +352,14 @@ model Recommendation {
   recommendation   String               @db.Text
   potentialSavings Decimal?             @db.Decimal(10, 2)
   status           RecommendationStatus @default(PENDING)
-  metadata         Json?                // Additional context, impact analysis, etc.
-  
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  
+  metadata         Json? // Additional context, impact analysis, etc.
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
-  
+
   @@index([userId])
   @@index([conversationId])
   @@index([status])
@@ -374,10 +374,10 @@ model ApiSchemaCache {
   service   String
   operation String
   schema    Json
-  source    String?  // 'context7' | 'azure_docs' | 'mcp'
+  source    String? // 'context7' | 'azure_docs' | 'mcp'
   cachedAt  DateTime @default(now())
   expiresAt DateTime
-  
+
   @@unique([service, operation])
   @@index([service])
   @@index([expiresAt])
@@ -391,15 +391,15 @@ model Budget {
   subscriptionId       String
   name                 String
   monthlyLimit         Decimal  @db.Decimal(10, 2)
-  alertThresholds      Int[]    // [80, 90, 100] - percentage thresholds
+  alertThresholds      Int[] // [80, 90, 100] - percentage thresholds
   notificationChannels String[] // ['email', 'slack', 'teams']
   isActive             Boolean  @default(true)
-  
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@index([userId])
   @@index([subscriptionId])
   @@index([isActive])
@@ -408,20 +408,20 @@ model Budget {
 
 // Track AI actions for audit and learning
 model AiAction {
-  id             String   @id @default(cuid())
+  id             String  @id @default(cuid())
   conversationId String
-  actionType     String   // 'tool_call', 'recommendation', 'query', etc.
+  actionType     String // 'tool_call', 'recommendation', 'query', etc.
   toolName       String?
   parameters     Json?
   result         Json?
   success        Boolean
-  errorMessage   String?  @db.Text
-  durationMs     Int?     // Execution time in milliseconds
-  
-  createdAt      DateTime @default(now())
-  
+  errorMessage   String? @db.Text
+  durationMs     Int? // Execution time in milliseconds
+
+  createdAt DateTime @default(now())
+
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  
+
   @@index([conversationId])
   @@index([actionType])
   @@index([toolName])
