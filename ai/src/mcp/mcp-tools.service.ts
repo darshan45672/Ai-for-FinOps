@@ -47,7 +47,7 @@ export class McpToolsService {
     return [
       {
         name: 'get_azure_resources',
-        description: 'Fetch Azure resources from the database. Use this to get information about Azure resources, their types, locations, resource groups, and status. Resources are automatically synced from Azure every hour.',
+        description: 'Fetch and list Azure resources from the database. Returns up to 50 resources with full details plus total count (out of potentially thousands). For large result sets, suggest using filters. Can filter by type, location, resourceGroup, or status to narrow results. Use this when users ask to "list resources", "show me resources", or "what resources do I have".',
         inputSchema: {
           type: 'object',
           properties: {
@@ -98,7 +98,7 @@ export class McpToolsService {
       },
       {
         name: 'get_resource_groups_count',
-        description: 'Get the total count of distinct resource groups across all Azure subscriptions. Use this when the user asks "how many resource groups do I have" or similar questions.',
+        description: 'Get the total count and complete list of all resource groups across all Azure subscriptions. Returns both the count and the names of all resource groups. Use this when users ask "how many resource groups", "list resource groups", or "show me resource groups".',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -248,9 +248,13 @@ export class McpToolsService {
       return 'No Azure resources found matching your filters.';
     }
 
+    const displayLimit = 50; // Increased from 20 to 50 for better visibility
     let response = `Found **${resources.length}** Azure resources:\n\n`;
     
-    resources.slice(0, 20).forEach((resource, index) => {
+    // Show first 50 resources (or all if less than 50)
+    const resourcesToShow = Math.min(resources.length, displayLimit);
+    
+    resources.slice(0, resourcesToShow).forEach((resource, index) => {
       response += `${index + 1}. **${resource.name}**\n`;
       response += `   - Type: ${resource.type}\n`;
       response += `   - Resource Group: ${resource.resourceGroup}\n`;
@@ -260,8 +264,8 @@ export class McpToolsService {
       response += `\n`;
     });
 
-    if (resources.length > 20) {
-      response += `\n_...and ${resources.length - 20} more resources_\n`;
+    if (resources.length > displayLimit) {
+      response += `\n_...and ${resources.length - displayLimit} more resources. Use filters (type, location, resourceGroup, status) to narrow down the results._\n`;
     }
 
     return response;
@@ -322,5 +326,97 @@ export class McpToolsService {
       });
 
     return response;
+  }
+
+  /**
+   * Get tools in Azure AI Foundry function tool format
+   * Uses the @azure/ai-agents ToolUtility to create function tools
+   */
+  getAzureFoundryFunctionTools() {
+    const tools = this.getAvailableTools();
+    
+    // Import ToolUtility dynamically to avoid bundling issues
+    let ToolUtility: any;
+    try {
+      ToolUtility = require('@azure/ai-agents').ToolUtility;
+    } catch (error) {
+      this.logger.error('Azure AI Agents SDK not installed. Run: npm install @azure/ai-agents');
+      throw new Error('Azure AI Agents SDK not available');
+    }
+
+    // ToolUtility.createFunctionTool returns { definition, func }
+    // We only need the definition property which has the correct format with 'type' field
+    return tools.map((tool) => {
+      const functionTool = ToolUtility.createFunctionTool({
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.inputSchema,
+      });
+      return functionTool.definition;
+    });
+  }
+
+  /**
+   * Get tools in Google Gemini FunctionDeclaration format
+   * Converts MCP tools to Gemini's function calling format
+   */
+  getGeminiFunctionDeclarations() {
+    const tools = this.getAvailableTools();
+    
+    // Import Type from @google/genai
+    let Type: any;
+    try {
+      const genai = require('@google/genai');
+      Type = genai.Type;
+    } catch (error) {
+      this.logger.error('Google GenAI SDK not installed. Run: npm install @google/genai');
+      throw new Error('Google GenAI SDK not available');
+    }
+
+    // Convert each tool to Gemini FunctionDeclaration format
+    return tools.map((tool) => {
+      // Convert JSON Schema properties to Gemini format
+      const properties = {};
+      if (tool.inputSchema.properties) {
+        for (const [key, value] of Object.entries(tool.inputSchema.properties)) {
+          const prop: any = value;
+          properties[key] = {
+            type: this.mapJsonTypeToGeminiType(prop.type, Type),
+            description: prop.description || '',
+          };
+        }
+      }
+
+      return {
+        name: tool.name,
+        description: tool.description,
+        parameters: {
+          type: Type.OBJECT,
+          properties,
+          required: tool.inputSchema.required || [],
+        },
+      };
+    });
+  }
+
+  /**
+   * Map JSON Schema type to Gemini Type enum
+   */
+  private mapJsonTypeToGeminiType(jsonType: string, Type: any) {
+    switch (jsonType.toLowerCase()) {
+      case 'string':
+        return Type.STRING;
+      case 'number':
+      case 'integer':
+        return Type.NUMBER;
+      case 'boolean':
+        return Type.BOOLEAN;
+      case 'array':
+        return Type.ARRAY;
+      case 'object':
+        return Type.OBJECT;
+      default:
+        return Type.STRING;
+    }
   }
 }
