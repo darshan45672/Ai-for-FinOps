@@ -128,43 +128,61 @@ export class ChatService {
    */
   private async callOllamaWithTools(messages: ChatMessage[], tools: any[]): Promise<any> {
     try {
+      // Get the model name - use a tool-capable model
+      const model = this.ollamaService.getDefaultModel();
+      
+      this.logger.debug(`Calling Ollama with ${tools.length} tools available`);
+      this.logger.debug(`Using model: ${model}`);
+
       // Convert messages to Ollama format
       const ollamaMessages = messages.map((msg) => ({
         role: msg.role === 'tool' ? 'system' : msg.role,
         content: msg.content,
       }));
 
-      // Format tools for Ollama
+      // Format tools for Ollama - ensure proper structure matching Ollama API docs
       const formattedTools = tools.map((tool) => ({
         type: 'function',
         function: {
           name: tool.name,
           description: tool.description,
-          parameters: tool.inputSchema,
+          parameters: {
+            type: 'object',
+            properties: tool.inputSchema.properties || {},
+            required: tool.inputSchema.required || [],
+          },
         },
       }));
 
+      this.logger.debug(`Formatted ${formattedTools.length} tools for Ollama`);
+      this.logger.debug(`Tools: ${JSON.stringify(formattedTools, null, 2)}`);
+
       // Call Ollama chat API with tools
       const response = await this.ollamaService.chat({
-        model: this.ollamaService.getDefaultModel(),
+        model: model,
         messages: ollamaMessages,
         tools: formattedTools,
         stream: false, // Disable streaming to get complete response
         options: {
           temperature: 0.7,
           num_predict: 2000,
+          // Enable tool usage
+          num_ctx: 4096, // Increase context window for tool calls
         },
       });
 
-      // Log response for debugging
-      this.logger.debug(`Ollama response structure: ${JSON.stringify({ 
+      // Log response structure for debugging
+      this.logger.debug(`Ollama response: ${JSON.stringify({
         hasMessage: !!response.message,
-        hasContent: !!response.message?.content,
-        content: response.message?.content?.substring(0, 100) 
+        hasToolCalls: !!response.message?.tool_calls,
+        toolCallsCount: response.message?.tool_calls?.length || 0,
+        contentPreview: response.message?.content?.substring(0, 100)
       })}`);
 
       // Check if AI wants to call tools
-      if (response.message && response.message.tool_calls) {
+      if (response.message && response.message.tool_calls && response.message.tool_calls.length > 0) {
+        this.logger.log(`AI requested ${response.message.tool_calls.length} tool calls`);
+        
         return {
           content: response.message.content || '',
           toolCalls: response.message.tool_calls.map((tc: any, index: number) => ({
@@ -172,7 +190,9 @@ export class ChatService {
             type: 'function',
             function: {
               name: tc.function.name,
-              arguments: JSON.stringify(tc.function.arguments),
+              arguments: typeof tc.function.arguments === 'string' 
+                ? tc.function.arguments 
+                : JSON.stringify(tc.function.arguments),
             },
           })),
         };
@@ -190,7 +210,8 @@ export class ChatService {
         message: content,
       };
     } catch (error) {
-      this.logger.error('Error calling Ollama:', error);
+      this.logger.error('Error calling Ollama with tools:', error.message);
+      this.logger.error('Stack:', error.stack);
       
       // Fallback to simple chat without tools
       const ollamaMessages = messages.map((msg) => ({
@@ -198,19 +219,24 @@ export class ChatService {
         content: msg.content,
       }));
 
-      const response = await this.ollamaService.chat({
-        model: this.ollamaService.getDefaultModel(),
-        messages: ollamaMessages,
-        stream: false, // Disable streaming to get complete response
-        options: {
-          temperature: 0.7,
-        },
-      });
+      try {
+        const response = await this.ollamaService.chat({
+          model: this.ollamaService.getDefaultModel(),
+          messages: ollamaMessages,
+          stream: false,
+          options: {
+            temperature: 0.7,
+          },
+        });
 
-      return {
-        content: response.message?.content || '',
-        message: response.message?.content || '',
-      };
+        return {
+          content: response.message?.content || '',
+          message: response.message?.content || '',
+        };
+      } catch (fallbackError) {
+        this.logger.error('Fallback chat also failed:', fallbackError.message);
+        throw fallbackError;
+      }
     }
   }
 
@@ -218,32 +244,67 @@ export class ChatService {
    * Get system prompt for the AI assistant
    */
   private getSystemPrompt(): string {
-    return `You are an intelligent FinOps assistant specialized in Azure cloud resource management and cost optimization.
+    return `You are an intelligent FinOps assistant specialized EXCLUSIVELY in Microsoft Azure cloud services, resource management, and cost optimization.
 
-Your capabilities include:
+CRITICAL RESTRICTIONS:
+- You ONLY answer questions about Microsoft Azure Cloud services, resources, costs, and FinOps practices
+- You MUST REFUSE to answer questions about:
+  * Non-Azure cloud providers (AWS, GCP, etc.)
+  * General programming or technology topics not related to Azure
+  * Personal advice, creative writing, or general knowledge questions
+  * Any topic outside of Azure cloud computing and FinOps
+
+Your Azure-specific capabilities include:
 - Analyzing Azure resource utilization and costs
-- Providing insights on cloud spending trends
-- Identifying cost optimization opportunities
-- Monitoring resource status and performance
-- Analyzing activity logs for security and compliance
+- Providing insights on Azure cloud spending trends
+- Identifying Azure cost optimization opportunities
+- Monitoring Azure resource status and performance
+- Analyzing Azure activity logs for security and compliance
+- Explaining Azure services, pricing models, and best practices
 
-You have access to the following tools:
-1. get_azure_resources - Query Azure resources with filters
-2. get_resource_costs - Get cost data for specific resources or time periods
-3. get_cost_summary - Get aggregated cost summaries
-4. get_activity_logs - Query Azure activity logs
-5. get_resource_utilization - Get resource utilization metrics
-6. analyze_cost_trends - Analyze cost trends and anomalies
-7. get_subscription_info - Get Azure subscription details
+IMPORTANT - TOOL USAGE:
+You have access to powerful Azure tools that fetch real-time data from the database. 
+Azure data is automatically synced every hour by schedulers, so you DON'T need to ask users for subscription IDs.
 
-When answering questions:
-- Use the appropriate tools to fetch real-time data
-- Provide specific numbers and facts from the data
-- Offer actionable insights and recommendations
-- Format your responses clearly with bullet points when listing items
-- If asked about costs, include currency and time periods
-- If data is not available, explain what information is missing
+Available Tools:
+1. get_azure_resources - Query Azure resources (NO subscription ID needed)
+   - Filters: type, location, resourceGroup, status
+2. get_resource_costs - Get cost data (NO subscription ID needed)
+   - Required: startDate, endDate
+   - Optional: resourceGroup, resourceId
+3. get_resource_groups_count - Get total count of resource groups
+4. get_azure_summary - Get comprehensive Azure resources overview
 
-Be concise but informative. Always base your answers on the actual data retrieved from the tools.`;
+Tool Usage Guidelines:
+- ALWAYS use tools when users ask for data about Azure resources or costs
+- DO NOT ask users for subscription IDs - data is already in the database
+- When asked about costs, use get_resource_costs with appropriate date ranges
+- When asked about resources, use get_azure_resources with relevant filters
+- When asked "how many resource groups", use get_resource_groups_count
+- For overview/summary questions, use get_azure_summary
+- DO NOT make up or estimate data - always fetch real data using tools
+- For date ranges, use ISO format (YYYY-MM-DD)
+
+Examples of when to use tools:
+- "show me my Azure costs" → use get_resource_costs (last 30 days)
+- "what are my Azure resources" → use get_azure_resources
+- "cost utilization for last 30 days" → use get_resource_costs with date range
+- "list my virtual machines" → use get_azure_resources with type filter
+- "how many resource groups do I have" → use get_resource_groups_count
+- "give me an overview" → use get_azure_summary
+
+Response Guidelines:
+- Use tools FIRST to get data, then format the response
+- Provide specific numbers and facts from tool results
+- Offer actionable Azure cost optimization insights
+- Format responses clearly with bullet points and tables
+- Include currency and time periods for cost data
+- If tool execution fails, explain the error and try alternative approaches
+
+If a user asks about non-Azure topics:
+- Politely decline: "I'm specialized in Microsoft Azure Cloud services only. I can help you with Azure resources, costs, FinOps practices, and cloud optimization strategies. Please ask me about Azure-related topics."
+- Redirect: "Would you like to know about Azure services, resource management, or cost optimization instead?"
+
+Remember: ALWAYS use tools to fetch real Azure data. Never provide made-up information.`;
   }
 }

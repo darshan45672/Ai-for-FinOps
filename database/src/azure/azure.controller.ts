@@ -46,6 +46,22 @@ export class AzureController {
     return this.azureService.createOrUpdateResources(body.resources);
   }
 
+  // Statistics - MUST come before parameterized routes to avoid conflicts
+  @Get('resources/groups/count')
+  async getResourceGroupsCount() {
+    return this.azureService.getResourceGroupsCount();
+  }
+
+  @Get('resources/summary')
+  async getResourcesSummary() {
+    return this.azureService.getResourcesSummary();
+  }
+
+  @Get('resources/statistics')
+  async getStatistics() {
+    return this.azureService.getStatistics();
+  }
+
   @Get('resources')
   async getResources(
     @Query('subscriptionId') subscriptionId?: string,
@@ -178,11 +194,5 @@ export class AzureController {
   @Get('sync-logs/latest/:syncType')
   async getLatestSyncLog(@Param('syncType') syncType: AzureSyncType) {
     return this.azureService.getLatestSyncLog(syncType);
-  }
-
-  // Statistics
-  @Get('statistics')
-  async getStatistics() {
-    return this.azureService.getStatistics();
   }
 }
