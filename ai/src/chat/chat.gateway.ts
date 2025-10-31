@@ -13,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { ChatGeminiService } from './chat-gemini.service';
+import { ContextService } from '../context/context.service';
 
 interface ChatMessagePayload {
   message: string;
@@ -48,6 +49,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   constructor(
     private readonly chatGeminiService: ChatGeminiService,
+    private readonly contextService: ContextService,
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {
@@ -199,10 +201,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           content: msg.content,
         }));
       
-      const responseMessage = await this.chatGeminiService.sendMessage(
+      // Call sendMessage with userId, conversationId, message, and conversation history
+      const result = await this.chatGeminiService.sendMessage(
+        payload.userId || 'anonymous',
+        conversation.conversationId || 'unknown',
         payload.message,
         filteredMessages,
       );
+
+      const responseMessage = result.response;
+      const richContext = result.richContext;
 
       // Add user message to conversation history
       conversation.messages.push({
@@ -225,14 +233,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             conversationId: conversation.conversationId,
             role: 'ASSISTANT',
             content: responseMessage.trim(),
-            toolsUsed: undefined, // TODO: Extract tools used from Azure AI Foundry response if needed
+            toolsUsed: undefined, // TODO: Extract tools used from response
           };
           
-          await firstValueFrom(
+          const messageResponse = await firstValueFrom(
             this.httpService.post(`${this.databaseServiceUrl}/chat/messages`, messageData),
           );
           
+          const savedMessageId = messageResponse.data.id;
           this.logger.log(`Saved assistant message to conversation ${conversation.conversationId}`);
+
+          // Save context snapshot if we have rich context
+          if (richContext && savedMessageId) {
+            try {
+              await this.contextService.saveContextSnapshot(savedMessageId, richContext);
+              this.logger.log(`Saved context snapshot for message ${savedMessageId}`);
+            } catch (error) {
+              this.logger.error(`Failed to save context snapshot: ${error.message}`);
+              // Don't fail the request if context snapshot fails
+            }
+          }
         } catch (error) {
           this.logger.error(`Failed to save assistant message: ${error.message}`);
           if (error.response?.data) {

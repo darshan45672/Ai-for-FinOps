@@ -233,7 +233,7 @@ export class ContextService {
     try {
       // Fetch conversation from database
       const response = await firstValueFrom(
-        this.httpService.get(`${process.env.DATABASE_SERVICE_URL}/conversations/${conversationId}`)
+        this.httpService.get(`${process.env.DATABASE_SERVICE_URL}/chat/conversations/${conversationId}`)
       );
 
       const conversation = response.data;
@@ -241,7 +241,7 @@ export class ContextService {
       // Fetch recent messages
       const messagesResponse = await firstValueFrom(
         this.httpService.get(
-          `${process.env.DATABASE_SERVICE_URL}/conversations/${conversationId}/messages?limit=${historyLimit}`
+          `${process.env.DATABASE_SERVICE_URL}/chat/conversations/${conversationId}/messages?limit=${historyLimit}`
         )
       );
 
@@ -336,8 +336,11 @@ export class ContextService {
       // Get best practices
       const bestPractices = await this.context7Service.getBestPractices(query);
       
+      // Get Context7 MCP tool guidance
+      const mcpGuidance = this.context7Service.getContext7McpGuidance();
+      
       return {
-        relevantDocs: docs.content,
+        relevantDocs: docs.content + '\n\n' + mcpGuidance,
         apiSchemas: [],
         bestPractices,
         codeExamples: [],
@@ -419,6 +422,91 @@ export class ContextService {
       );
     } catch (error) {
       this.logger.error(`Failed to update conversation metadata: ${error.message}`);
+    }
+  }
+
+  /**
+   * Save rich context snapshot for a message
+   * This allows us to recreate the exact context that was used for AI response
+   */
+  async saveContextSnapshot(
+    messageId: string,
+    richContext: RichContext,
+  ): Promise<void> {
+    this.logger.debug(`Saving context snapshot for message: ${messageId}`);
+
+    try {
+      const snapshot = {
+        messageId,
+        userPreferences: richContext.user.preferences || null,
+        azureState: {
+          subscription: richContext.azure.subscription,
+          topResources: richContext.azure.topResources,
+          activeAlerts: richContext.azure.activeAlerts,
+          resourceHealth: richContext.azure.resourceHealth,
+        },
+        conversationMetadata: {
+          currentTopic: richContext.conversation.currentTopic,
+          entitiesDiscussed: richContext.conversation.entitiesDiscussed,
+          pendingActions: richContext.conversation.pendingActions,
+        },
+        historicalData: {
+          costTrends: richContext.history.costTrends,
+          recommendations: richContext.history.recommendations,
+          pastDecisions: richContext.history.pastDecisions,
+        },
+        relevantDocs: richContext.documentation.relevantDocs 
+          ? {
+              docs: richContext.documentation.relevantDocs,
+              bestPractices: richContext.documentation.bestPractices,
+              codeExamples: richContext.documentation.codeExamples,
+            }
+          : null,
+        availableTools: {
+          count: richContext.tools.available.length,
+          tools: richContext.tools.available.map(t => ({
+            name: t.name,
+            description: t.description,
+            category: t.category,
+          })),
+          recentlyUsed: richContext.tools.recentlyUsed,
+          executionStats: richContext.tools.executionStats,
+        },
+        fullContext: richContext, // Store complete context for debugging
+      };
+
+      await firstValueFrom(
+        this.httpService.post(
+          `${process.env.DATABASE_SERVICE_URL}/chat/context-snapshots`,
+          snapshot,
+        )
+      );
+
+      this.logger.log(`Context snapshot saved successfully for message: ${messageId}`);
+    } catch (error) {
+      this.logger.error(`Failed to save context snapshot: ${error.message}`);
+      // Don't throw - context snapshot is nice-to-have, not critical
+    }
+  }
+
+  /**
+   * Retrieve context snapshot for a message
+   * Useful for debugging and understanding past AI decisions
+   */
+  async getContextSnapshot(messageId: string): Promise<any | null> {
+    this.logger.debug(`Retrieving context snapshot for message: ${messageId}`);
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(
+          `${process.env.DATABASE_SERVICE_URL}/chat/context-snapshots/${messageId}`,
+        )
+      );
+
+      return response.data;
+    } catch (error) {
+      this.logger.warn(`Failed to retrieve context snapshot: ${error.message}`);
+      return null;
     }
   }
 

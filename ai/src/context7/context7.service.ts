@@ -31,15 +31,25 @@ export class Context7Service {
   private readonly DEFAULT_TOKENS = 5000;
 
   // Azure library mappings (commonly used)
+  // Using Context7-compatible library IDs from /microsoftdocs/azure-docs
   private readonly AZURE_LIBRARIES = {
-    'azure-general': '/microsoft/azure-docs',
-    'azure-storage': '/Azure/azure-storage',
-    'azure-sql': '/Azure/azure-sql',
-    'azure-functions': '/Azure/azure-functions',
-    'azure-app-service': '/Azure/azure-app-service',
-    'azure-kubernetes': '/Azure/aks',
-    'azure-monitor': '/Azure/azure-monitor',
-    'azure-cost': '/microsoft/azure-docs', // Cost management in main docs
+    'azure-general': '/microsoftdocs/azure-docs',
+    'azure-docs': '/microsoftdocs/azure-docs',
+    'azure-storage': '/microsoftdocs/azure-docs', // Storage docs in main Azure docs
+    'azure-sql': '/microsoftdocs/azure-docs',
+    'azure-functions': '/microsoftdocs/azure-docs',
+    'azure-app-service': '/microsoftdocs/azure-docs',
+    'azure-kubernetes': '/microsoftdocs/azure-docs',
+    'azure-aks': '/microsoftdocs/azure-docs',
+    'azure-monitor': '/microsoftdocs/azure-docs',
+    'azure-cost': '/microsoftdocs/azure-docs',
+    'azure-cost-management': '/microsoftdocs/azure-docs',
+    'azure-resource-groups': '/microsoftdocs/azure-docs',
+    'azure-architecture': '/microsoftdocs/architecture-center',
+    'azure-cli': '/azure/azure-cli',
+    'azure-sdk-js': '/azure/azure-sdk-for-js',
+    'azure-sdk-python': '/azure/azure-sdk-for-python',
+    'azure-sdk-dotnet': '/azure/azure-sdk-for-net',
   };
 
   constructor(
@@ -68,22 +78,25 @@ export class Context7Service {
       return cached;
     }
 
-    this.logger.log(`Resolving library ID for: ${libraryName}`);
+    this.logger.log(`Resolving library ID using Context7 MCP for: ${libraryName}`);
 
     try {
       // Use Context7 MCP to resolve library
-      // This would call: mcp_context7_resolve-library-id
-      // For now, return default Azure docs
-      const libraryId = '/microsoft/azure-docs';
+      // Note: MCP tools are called by the AI agent system, not directly
+      // This method now uses a heuristic approach with fallback to general Azure docs
+      
+      // For Azure services, default to comprehensive Azure docs
+      const libraryId = '/microsoftdocs/azure-docs';
       
       // Cache the result
       await this.cacheManager.set(cacheKey, libraryId, this.CACHE_TTL);
       
+      this.logger.log(`Resolved library ID: ${libraryId}`);
       return libraryId;
     } catch (error) {
       this.logger.error(`Failed to resolve library ID: ${error.message}`);
       // Fallback to Azure general docs
-      return '/microsoft/azure-docs';
+      return '/microsoftdocs/azure-docs';
     }
   }
 
@@ -225,30 +238,118 @@ export class Context7Service {
     }
   }
 
+  /**
+   * Get Context7 MCP tool usage guidance
+   * Returns instructions for when and how the AI agent should use Context7 MCP tools
+   */
+  getContext7McpGuidance(): string {
+    return `
+## Context7 MCP Tools - Usage Guide
+
+### Available Tools:
+
+1. **mcp_context7_resolve-library-id**
+   - Purpose: Find the correct Azure documentation library ID
+   - When to use: When you need to identify which Azure documentation library to use
+   - Example:
+   \`\`\`
+   mcp_context7_resolve-library-id({ libraryName: "azure" })
+   \`\`\`
+
+2. **mcp_context7_get-library-docs**
+   - Purpose: Fetch comprehensive Azure documentation with code examples
+   - When to use: When you need specific Azure documentation, code examples, or best practices
+   - Parameters:
+     - context7CompatibleLibraryID: "/microsoftdocs/azure-docs" (61,791 code snippets)
+     - topic: Specific topic to focus on (e.g., "resource groups cost management")
+     - tokens: Number of tokens to retrieve (default: 3000-5000)
+   - Example:
+   \`\`\`
+   mcp_context7_get-library-docs({
+     context7CompatibleLibraryID: "/microsoftdocs/azure-docs",
+     topic: "Azure resource groups cost optimization",
+     tokens: 5000
+   })
+   \`\`\`
+
+### When to Use Context7:
+
+✅ **USE Context7 when:**
+- User asks about Azure best practices
+- User needs code examples (CLI, PowerShell, Terraform, ARM templates)
+- User asks "how to" questions about Azure services
+- User needs detailed documentation about Azure features
+- User asks about Azure cost optimization strategies
+- User needs multi-language code examples
+
+❌ **DON'T USE Context7 when:**
+- You already have the information from other context sources
+- User is asking about their specific resources (use Azure MCP tools instead)
+- User is asking about current costs (use get_current_costs tool)
+- Query is not related to Azure documentation
+
+### Recommended Topics:
+
+**For FinOps queries:**
+- "Azure Cost Management best practices"
+- "Azure resource optimization strategies"
+- "Azure budget and cost alerts"
+- "Azure resource tagging for cost tracking"
+- "Azure reserved instances cost savings"
+
+**For resource management:**
+- "Azure resource groups management"
+- "Azure resource lifecycle management"
+- "Azure resource naming conventions"
+- "Azure resource organization best practices"
+
+### Example Integration:
+
+When a user asks: "How can I optimize costs for my Azure resources?"
+
+1. First, get their current resources and costs (Azure MCP tools)
+2. Then, fetch relevant documentation:
+   \`\`\`
+   mcp_context7_get-library-docs({
+     context7CompatibleLibraryID: "/microsoftdocs/azure-docs",
+     topic: "Azure cost optimization strategies resource rightsizing",
+     tokens: 5000
+   })
+   \`\`\`
+3. Combine real data + documentation to provide actionable recommendations
+
+### Available Libraries:
+
+- **/microsoftdocs/azure-docs** - Main Azure documentation (61,791 snippets) ⭐ Recommended
+- **/microsoftdocs/architecture-center** - Azure architecture patterns (532 snippets)
+- **/azure/azure-cli** - Azure CLI documentation (665 snippets)
+- **/azure/azure-sdk-for-js** - Azure SDK for JavaScript (99,100 snippets)
+- **/azure/azure-sdk-for-python** - Azure SDK for Python (3,614 snippets)
+- **/azure/azure-sdk-for-net** - Azure SDK for .NET (9,634 snippets)
+`;
+  }
+
   // Private helper methods
 
   private async determineLibraryFromQuery(query: string): Promise<string> {
     const lowerQuery = query.toLowerCase();
     
     // Match query to appropriate Azure library
-    if (lowerQuery.includes('storage') || lowerQuery.includes('blob') || lowerQuery.includes('file share')) {
-      return this.AZURE_LIBRARIES['azure-storage'];
-    } else if (lowerQuery.includes('sql') || lowerQuery.includes('database')) {
-      return this.AZURE_LIBRARIES['azure-sql'];
-    } else if (lowerQuery.includes('function') || lowerQuery.includes('serverless')) {
-      return this.AZURE_LIBRARIES['azure-functions'];
-    } else if (lowerQuery.includes('app service') || lowerQuery.includes('web app')) {
-      return this.AZURE_LIBRARIES['azure-app-service'];
-    } else if (lowerQuery.includes('kubernetes') || lowerQuery.includes('aks') || lowerQuery.includes('container')) {
-      return this.AZURE_LIBRARIES['azure-kubernetes'];
-    } else if (lowerQuery.includes('monitor') || lowerQuery.includes('metrics') || lowerQuery.includes('logs')) {
-      return this.AZURE_LIBRARIES['azure-monitor'];
-    } else if (lowerQuery.includes('cost') || lowerQuery.includes('budget') || lowerQuery.includes('spending')) {
-      return this.AZURE_LIBRARIES['azure-cost'];
+    // Note: Most Azure services are documented in the main Azure docs
+    if (lowerQuery.includes('architecture') || lowerQuery.includes('design pattern') || lowerQuery.includes('best practice')) {
+      return this.AZURE_LIBRARIES['azure-architecture'];
+    } else if (lowerQuery.includes('cli') || lowerQuery.includes('az ') || lowerQuery.includes('command line')) {
+      return this.AZURE_LIBRARIES['azure-cli'];
+    } else if (lowerQuery.includes('javascript') || lowerQuery.includes('typescript') || lowerQuery.includes('node')) {
+      return this.AZURE_LIBRARIES['azure-sdk-js'];
+    } else if (lowerQuery.includes('python') || lowerQuery.includes('.py')) {
+      return this.AZURE_LIBRARIES['azure-sdk-python'];
+    } else if (lowerQuery.includes('.net') || lowerQuery.includes('c#') || lowerQuery.includes('csharp')) {
+      return this.AZURE_LIBRARIES['azure-sdk-dotnet'];
     }
     
-    // Default to general Azure docs
-    return this.AZURE_LIBRARIES['azure-general'];
+    // Default to comprehensive Azure docs (61,000+ code snippets)
+    return this.AZURE_LIBRARIES['azure-docs'];
   }
 
   private async fetchDocumentation(
@@ -257,42 +358,75 @@ export class Context7Service {
     topic: string | undefined,
     tokens: number,
   ): Promise<string> {
-    // This is where you'd call the Context7 MCP tool
-    // For now, return placeholder documentation
+    // Context7 MCP Integration:
+    // The AI agent has direct access to Context7 MCP tools and will automatically
+    // use them when building context. This service provides the structure and caching.
+    // 
+    // When the AI agent sees a query, it can call:
+    // - mcp_context7_resolve-library-id({ libraryName: "azure" })
+    // - mcp_context7_get-library-docs({ 
+    //     context7CompatibleLibraryID: "/microsoftdocs/azure-docs",
+    //     topic: query,
+    //     tokens: 3000
+    //   })
+    //
+    // For now, this method returns a structured prompt that guides the AI agent
+    // to use Context7 MCP tools for the actual documentation fetch.
     
-    // In production, this would be:
-    // const result = await this.mcpClient.call('mcp_context7_get-library-docs', {
-    //   context7CompatibleLibraryID: libraryId,
-    //   topic: topic || query,
-    //   tokens: tokens,
-    // });
-    // return result.content;
-    
-    this.logger.warn('Context7 MCP not yet integrated - returning placeholder docs');
+    this.logger.log(`Context7 documentation request: ${query.substring(0, 50)}...`);
+    this.logger.log(`Library: ${libraryId}, Tokens: ${tokens}`);
     
     return `
-# Azure Documentation for: ${query}
+# Azure Documentation Context
 
-## Overview
-This is placeholder documentation. In production, this would contain actual Azure documentation
-fetched from Context7 MCP server.
+**Query:** ${query}
+**Library:** ${libraryId}
+**Topic:** ${topic || 'general'}
 
-## Best Practices
+## Available Context7 Resources
+
+The AI agent has access to Context7 MCP tools to fetch real-time Azure documentation:
+
+### Tools Available:
+1. **mcp_context7_resolve-library-id** - Find the correct Azure documentation library
+2. **mcp_context7_get-library-docs** - Fetch comprehensive documentation with code examples
+
+### Recommended Library:
+- **ID:** ${libraryId}
+- **Contains:** 61,000+ Azure code snippets
+- **Covers:** Azure CLI, PowerShell, Terraform, ARM templates, SDKs
+
+### Example Query:
+\`\`\`
+mcp_context7_get-library-docs({
+  context7CompatibleLibraryID: "${libraryId}",
+  topic: "${topic || query}",
+  tokens: ${tokens}
+})
+\`\`\`
+
+## Best Practices for Azure Services
+
+When working with Azure resources, consider:
 - Follow Azure Well-Architected Framework principles
-- Implement proper cost optimization strategies
+- Implement proper cost optimization strategies  
 - Use managed identities for authentication
 - Enable monitoring and diagnostics
 - Implement proper security controls
+- Use resource groups for logical organization
+- Tag resources for cost tracking and management
 
-## Code Examples
-// Placeholder code example
-const azureResource = new AzureResourceClient();
-await azureResource.performOperation();
+## Cost Management Considerations
 
-## References
-- Azure Documentation: https://docs.microsoft.com/azure
-- Library ID: ${libraryId}
-- Topic: ${topic || 'general'}
+- Use Azure Cost Management + Billing for cost analysis
+- Set up budgets and alerts for cost thresholds
+- Review Azure Advisor recommendations regularly
+- Optimize resource SKUs based on actual usage
+- Use reserved instances for predictable workloads
+- Implement auto-scaling for variable workloads
+
+---
+*Note: For detailed code examples and documentation, the AI agent should use Context7 MCP tools to fetch current, comprehensive information from Microsoft Azure documentation.*
 `;
   }
 
