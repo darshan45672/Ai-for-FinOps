@@ -12,12 +12,17 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-import { ChatService, ChatMessage } from './chat.service';
+import { ChatGeminiService } from './chat-gemini.service';
 
 interface ChatMessagePayload {
   message: string;
   conversationId?: string;
   userId?: string;
+}
+
+interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
 }
 
 interface ConversationState {
@@ -42,7 +47,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly databaseServiceUrl: string;
 
   constructor(
-    private readonly chatService: ChatService,
+    private readonly chatGeminiService: ChatGeminiService,
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {
@@ -103,13 +108,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       let conversation = this.conversations.get(clientId) || {
         messages: [],
         userId: payload.userId,
-        conversationId: payload.conversationId,
+        conversationId: payload.conversationId, // Use conversationId from payload if provided
       };
 
-      // Create new conversation if userId is provided but no conversationId
+      // Update conversationId from payload if provided (user might be continuing an existing conversation)
+      if (payload.conversationId) {
+        conversation.conversationId = payload.conversationId;
+        conversation.userId = payload.userId;
+        this.conversations.set(clientId, conversation);
+      }
+
+      // Create new conversation ONLY if:
+      // 1. User is authenticated (userId exists)
+      // 2. No conversationId exists yet (neither in payload nor in memory)
+      // 3. This is the first message in a new conversation
       if (payload.userId && !conversation.conversationId) {
         try {
-          // Generate a temporary title from the first message
+          // Generate a title from the first message (up to 50 characters)
           const tempTitle = payload.message.substring(0, 50) + (payload.message.length > 50 ? '...' : '');
           
           const createConversationResponse = await firstValueFrom(
@@ -175,24 +190,42 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
       }
 
-      // Process message with chat service
-      const response = await this.chatService.processMessage(
+      // Process message with Gemini chat service
+      // Filter out system messages and cast to expected type
+      const filteredMessages = conversation.messages
+        .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
+        .map((msg) => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        }));
+      
+      const responseMessage = await this.chatGeminiService.sendMessage(
         payload.message,
-        conversation.messages,
+        filteredMessages,
       );
 
-      // Update conversation state
-      conversation.messages = response.conversationHistory;
+      // Add user message to conversation history
+      conversation.messages.push({
+        role: 'user',
+        content: payload.message,
+      });
+
+      // Add assistant response to conversation history
+      conversation.messages.push({
+        role: 'assistant',
+        content: responseMessage,
+      });
+
       this.conversations.set(clientId, conversation);
 
       // Save assistant response to database
-      if (payload.userId && conversation.conversationId && response.message && response.message.trim()) {
+      if (payload.userId && conversation.conversationId && responseMessage && responseMessage.trim()) {
         try {
           const messageData = {
             conversationId: conversation.conversationId,
             role: 'ASSISTANT',
-            content: response.message.trim(),
-            toolsUsed: response.toolsUsed && response.toolsUsed.length > 0 ? response.toolsUsed : undefined,
+            content: responseMessage.trim(),
+            toolsUsed: undefined, // TODO: Extract tools used from Azure AI Foundry response if needed
           };
           
           await firstValueFrom(
@@ -206,7 +239,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             this.logger.error(`Error details: ${JSON.stringify(error.response.data)}`);
           }
         }
-      } else if (payload.userId && conversation.conversationId && (!response.message || !response.message.trim())) {
+      } else if (payload.userId && conversation.conversationId && (!responseMessage || !responseMessage.trim())) {
         this.logger.warn(`Skipping save of empty assistant message for conversation ${conversation.conversationId}`);
       }
 
@@ -215,8 +248,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       // Send response to client
       client.emit('chat_response', {
-        message: response.message,
-        toolsUsed: response.toolsUsed,
+        message: responseMessage,
+        toolsUsed: [], // TODO: Extract tools used from Azure AI Foundry if needed
         conversationId: conversation.conversationId,
         timestamp: new Date().toISOString(),
       });

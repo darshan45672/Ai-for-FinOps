@@ -529,4 +529,72 @@ export class AzureService {
       resourcesByLocation,
     };
   }
+
+  // Resource Groups Count
+  async getResourceGroupsCount() {
+    const resourceGroups = await this.prisma.azureResource.findMany({
+      select: {
+        resourceGroup: true,
+      },
+      distinct: ['resourceGroup'],
+    });
+
+    return {
+      count: resourceGroups.length,
+      resourceGroups: resourceGroups.map(rg => rg.resourceGroup).sort(),
+    };
+  }
+
+  // Resources Summary
+  async getResourcesSummary() {
+    const [
+      totalResources,
+      resourcesByType,
+      resourcesByLocation,
+      resourcesByStatus,
+      resourcesByGroup,
+    ] = await Promise.all([
+      this.prisma.azureResource.count(),
+      this.prisma.azureResource.groupBy({
+        by: ['type'],
+        _count: { type: true },
+        orderBy: { _count: { type: 'desc' } },
+      }),
+      this.prisma.azureResource.groupBy({
+        by: ['location'],
+        _count: { location: true },
+        orderBy: { _count: { location: 'desc' } },
+      }),
+      this.prisma.azureResource.groupBy({
+        by: ['status'],
+        _count: { status: true },
+      }),
+      this.prisma.azureResource.groupBy({
+        by: ['resourceGroup'],
+        _count: { resourceGroup: true },
+        orderBy: { _count: { resourceGroup: 'desc' } },
+        take: 20,
+      }),
+    ]);
+
+    return {
+      totalResources,
+      resourcesByType: resourcesByType.map(item => ({
+        type: item.type,
+        count: item._count.type,
+      })),
+      resourcesByLocation: resourcesByLocation.map(item => ({
+        location: item.location,
+        count: item._count.location,
+      })),
+      resourcesByStatus: resourcesByStatus.map(item => ({
+        status: item.status,
+        count: item._count.status,
+      })),
+      resourcesByGroup: resourcesByGroup.map(item => ({
+        resourceGroup: item.resourceGroup,
+        count: item._count.resourceGroup,
+      })),
+    };
+  }
 }
