@@ -1,30 +1,185 @@
-# AI for FinOps
+# AI for FinOps 🚀
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![NestJS](https://img.shields.io/badge/NestJS-E0234E?style=for-the-badge&logo=nestjs&logoColor=white)](https://nestjs.com/)
 [![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Podman](https://img.shields.io/badge/Podman-892CA0?style=for-the-badge&logo=podman&logoColor=white)](https://podman.io/)
+[![Azure](https://img.shields.io/badge/Azure-0078D4?style=for-the-badge&logo=microsoft-azure&logoColor=white)](https://azure.microsoft.com/)
 
-A comprehensive AI-powered FinOps platform built with microservices architecture that enables businesses to analyze, optimize, and take action on their cloud usage through intelligent chat-based interactions.
+**A fully autonomous agentic AI system for Azure FinOps** - Combining Google Gemini 2.0 Flash, Context7 RAG, Azure MCP integration, and intelligent context engineering to provide real-time cloud cost optimization through natural language conversations.
+
+---
 
 ## 🎯 Overview
 
-AI for FinOps is a revolutionary platform that transforms how businesses manage their cloud financial operations. By combining artificial intelligence with real-time cloud resource monitoring, it provides actionable insights through an intuitive chat interface, enabling organizations to optimize costs, improve resource utilization, and make data-driven decisions.
+AI for FinOps is a **next-generation intelligent FinOps platform** that revolutionizes Azure cloud financial management. Unlike traditional FinOps tools, this system is a **fully autonomous AI agent** that:
+
+- **Understands Natural Language**: Ask questions like "What are my Azure costs this month?" or "Find unused resources"
+- **Autonomous Tool Usage**: Automatically discovers and executes 200+ Azure MCP tools without manual configuration
+- **Context-Aware**: Maintains conversation history, learns from past interactions, and provides personalized insights
+- **Documentation Grounded**: Integrates Context7 MCP for real-time Azure documentation to ensure accurate, up-to-date recommendations
+- **Proactive Recommendations**: Daily cost snapshots with AI-generated optimization suggestions
+- **Self-Healing**: Intelligent retry mechanisms, caching strategies, and error recovery
+
+**Built with:**
+- **Google Gemini 2.0 Flash** - Advanced function calling and multi-turn reasoning
+- **Context7 MCP** - Real-time Azure documentation retrieval
+- **Azure MCP Servers** - 8 specialized servers with 200+ tools
+- **Smart Context Engineering** - 6-layer context aggregation system
+- **NestJS Microservices** - Scalable, maintainable architecture
+
+---
+
+## 🆕 Recent Updates
+
+### Response Formatting Enhancement (January 2025)
+**Status:** ✅ Complete | **Test Now:** [Quick Start Guide](./FORMATTING_QUICK_START.md)
+
+Significantly improved AI response formatting for better user experience:
+
+**Before:**
+```
+Az-CI-test, AzureBackupRG_eastus2_1, BackupCenterTest, ... [219 total]
+```
+
+**After:**
+```markdown
+I found **219 resource groups**. Here's a summary:
+
+📍 **By Location:**
+- East US: 45 RGs | West US: 32 RGs
+
+🏷️ **Patterns:**
+- prod-*: 67 RGs | dev-*: 89 RGs
+
+💡 What would you like to do?
+```
+
+**What's New:**
+- ✅ Structured formatting with emojis, bold, headers, tables
+- ✅ Intelligent sizing: Detailed lists (< 20 items), summaries (50+ items)
+- ✅ Grouped by location, status, naming patterns
+- ✅ Actionable insights and suggested next steps
+- ✅ Context7 integration for Azure best practices
+
+**Documentation:**
+- [Quick Start Guide](./FORMATTING_QUICK_START.md) - Test the enhancement now
+- [Implementation Summary](./docs/FORMATTING_IMPLEMENTATION_SUMMARY.md) - Technical details
+- [Complete Enhancement Guide](./docs/RESPONSE_FORMATTING_ENHANCEMENT.md) - Full documentation
+
+---
 
 ## ✨ Key Features
 
-- **🤖 AI-Powered Analysis**: Advanced AI algorithms analyze cloud usage patterns and provide intelligent recommendations
-- **💬 Chat-Based Interface**: Intuitive ChatGPT-like interface for natural language queries and interactions
-- **☁️ Multi-Cloud Integration**: Seamlessly connects with major cloud platforms (AWS, Azure, GCP, etc.)
-- **📊 Real-Time Monitoring**: Live monitoring of cloud resources and cost tracking
-- **🔐 Secure Authentication**: JWT-based authentication with refresh tokens and session management
-- **🏗️ Microservices Architecture**: Independent, scalable services for better maintainability
-- **📱 Responsive Design**: Mobile-first design with support for all devices
-- **🎨 Theme Support**: Dark, light, and system theme options
-- **⚡ Performance Optimized**: Built with modern technologies for optimal performance
-- **🐳 Containerized**: Podman/Docker support for easy deployment
+### 🤖 Autonomous AI Agent
+- **Function Calling**: Gemini 2.0 Flash autonomously selects and executes Azure tools
+- **Multi-Turn Reasoning**: Handles complex queries requiring multiple tool calls
+- **Context Persistence**: Remembers conversation history across sessions
+- **Smart Context Building**: Aggregates user, Azure, conversation, historical, documentation, and tool contexts
+- **📝 Formatted Responses**: Professional, readable output with emojis and structure *(NEW)*
+
+### 💬 Intelligent Chat Interface
+- ChatGPT-like natural language interface
+- Real-time streaming responses (SSE)
+- Multi-turn conversations with context awareness
+- Conversation management and history
+
+### ☁️ Azure Integration
+- **8 Azure MCP Servers**: App Configuration, Confidential Ledger, AZQR, Azure CLI, Grafana, Managed Lustre, Redis, SQL, Workbooks
+- **200+ Tools**: Azure Resource Graph, Cost Management, Resource Health, Monitoring, Diagnostics
+- **Dynamic Tool Discovery**: Automatically finds and integrates new Azure tools
+- **Real-Time Data**: Live queries to Azure APIs for current resource state
+
+### 📊 Cost Optimization
+- **Daily Cost Snapshots**: Automated collection via cron jobs
+- **Cost Trend Analysis**: Historical cost tracking and visualization
+- **AI Recommendations**: Intelligent cost optimization suggestions
+- **Potential Savings**: Quantified savings estimates for each recommendation
+- **Recommendation Tracking**: Status management (Pending, Accepted, Completed)
+
+### 🔍 Context7 RAG Integration
+- Real-time Azure documentation retrieval
+- Library resolution for Azure services
+- Documentation caching (1-hour TTL)
+- Grounded responses based on official Microsoft docs
+
+### 🏗️ Microservices Architecture
+- **Frontend**: Next.js 15 with React 19 and Tailwind CSS
+- **Authentication Service**: JWT-based auth with OAuth (GitHub)
+- **Database Service**: Prisma ORM with PostgreSQL
+- **Backend Service**: Azure API integration and cron jobs
+- **AI Service**: Gemini AI, Context7, and MCP gateway
+
+### ⚡ Performance & Reliability
+- **Redis Caching**: Multi-layer caching (docs, user, Azure, tools)
+- **Rate Limiting**: Exponential backoff retry for API limits
+- **Error Recovery**: Graceful degradation and user-friendly errors
+- **Smart Pagination**: Efficient data loading
+- **Response Streaming**: Real-time AI responses
+
+---
+
+## 🏗️ Architecture
+
+### System Overview
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                        USER INTERFACE                          │
+│              Next.js 15 Frontend (Port 3000)                   │
+└────────────┬───────────────────────────────────────────────────┘
+             │
+┌────────────▼───────────────────────────────────────────────────┐
+│                    AUTHENTICATION LAYER                        │
+│         JWT Auth + GitHub OAuth (Port 3001)                    │
+└────────────┬───────────────────────────────────────────────────┘
+             │
+      ┌──────┴──────┬─────────────┬────────────────┐
+      │             │             │                │
+┌─────▼─────┐  ┌───▼────┐  ┌────▼────┐  ┌───────▼──────┐
+│  Backend  │  │   AI   │  │Database │  │   Azure MCP  │
+│  Service  │  │Service │  │ Service │  │   Gateway    │
+│ (Port     │  │(Port   │  │(Port    │  │              │
+│  3003)    │  │ 3004)  │  │ 3002)   │  │              │
+└─────┬─────┘  └───┬────┘  └────┬────┘  └───────┬──────┘
+      │            │             │               │
+      │     ┌──────┴─────┐       │      ┌────────▼────────┐
+      │     │  Context   │       │      │  8 Azure MCP    │
+      │     │  Engine    │       │      │    Servers      │
+      │     │  (6 layers)│       │      │  (200+ tools)   │
+      │     └──────┬─────┘       │      └────────┬────────┘
+      │            │             │               │
+┌─────▼────────────▼─────────────▼───────────────▼────────┐
+│                    DATA LAYER                            │
+│  PostgreSQL (Prisma)  │  Redis Cache  │  Azure APIs     │
+└──────────────────────────────────────────────────────────┘
+```
+
+### 6-Layer Context Engine
+
+The heart of the AI system is the **Context Service** that aggregates information from 6 sources:
+
+1. **User Context**: Profile, preferences, Azure credentials
+2. **Azure Context**: Current subscriptions, resource groups, resources
+3. **Conversation History**: Past messages and context snapshots
+4. **Historical Context**: Cost snapshots, previous recommendations
+5. **Documentation Context**: Real-time Azure docs via Context7 MCP
+6. **Tool Context**: Available MCP tools and schemas
+
+This rich context is fed to Gemini 2.0 Flash for intelligent, personalized responses.
+
+### Microservices
+
+| Service | Port | Purpose | Technology |
+|---------|------|---------|------------|
+| **Frontend** | 3000 | User interface | Next.js 15, React 19, Tailwind CSS |
+| **Authentication** | 3001 | User auth, JWT, OAuth | NestJS, Passport, JWT |
+| **Database** | 3002 | Data persistence API | NestJS, Prisma, PostgreSQL |
+| **Backend** | 3003 | Azure integration, cron jobs | NestJS, Azure SDK, @nestjs/schedule |
+| **AI** | 3004 | AI agent, context, MCP gateway | NestJS, Gemini 2.0, Context7, MCP |
+
+---
 
 ## 🚀 Quick Start
 
@@ -32,71 +187,133 @@ AI for FinOps is a revolutionary platform that transforms how businesses manage 
 
 - **Node.js v20+**
 - **npm v10+**
-- **PostgreSQL** (or use Neon serverless)
-- **Podman/Docker** (optional, for containerized deployment)
+- **PostgreSQL** (or Neon serverless)
+- **Redis** (local or Azure Cache)
+- **Azure Account** with valid credentials
+- **Gemini API Key** from Google AI Studio
 
-## 🧩 Version Matrix
+### Environment Setup
 
-| Component        | Version   | Notes |
-|------------------|-----------|-------|
-| **Node.js**      | 20.11.1   | Recommended runtime |
-| **NestJS**       | 11.1.6    | Backend framework |
-| **Next.js**      | 15.5.4    | Frontend framework |
-| **React**        | 19.2.0    | Frontend library |
-| **TypeScript**   | 5.9.3     | Common language across frontend/backend |
-| **Prisma**       | 6.16.3      | Database ORM |
-| **PostgreSQL**   | 16+        | Recommended server version (Neon/PostgreSQL) |
-| **Tailwind CSS** | 4         | Frontend styling |
-| **ESLint**       | 9.37.0    | Linting |
-| **Prettier**     | 3.6.2     | Formatting backend code |
+Create `.env` files for each service:
 
-### 1. Clone the Repository
+**database/.env**
+```env
+DATABASE_URL=postgresql://user:password@localhost:5432/finops
+REDIS_URL=redis://localhost:6379
+PORT=3002
+```
+
+**backend/.env**
+```env
+DATABASE_SERVICE_URL=http://localhost:3002
+AZURE_CLIENT_ID=your-client-id
+AZURE_CLIENT_SECRET=your-secret
+AZURE_TENANT_ID=your-tenant-id
+AZURE_SUBSCRIPTION_ID=your-subscription-id
+PORT=3003
+```
+
+**ai/.env**
+```env
+DATABASE_SERVICE_URL=http://localhost:3002
+GEMINI_API_KEY=your-gemini-api-key
+REDIS_URL=redis://localhost:6379
+PORT=3004
+```
+
+**authentication/.env**
+```env
+DATABASE_SERVICE_URL=http://localhost:3002
+JWT_SECRET=your-jwt-secret-min-32-chars
+JWT_EXPIRATION=1h
+REFRESH_TOKEN_EXPIRATION=7d
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-secret
+PORT=3001
+```
+
+**frontend/.env.local**
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3003
+NEXT_PUBLIC_AUTH_URL=http://localhost:3001
+NEXT_PUBLIC_AI_URL=http://localhost:3004
+```
+
+### Installation
 
 ```bash
+# 1. Clone repository
 git clone https://github.com/darshan45672/Ai-for-FinOps.git
 cd Ai-for-FinOps
-```
 
-### 2. Setup Database Service
+# 2. Install dependencies for all services
+cd database && npm install && cd ..
+cd backend && npm install && cd ..
+cd ai && npm install && cd ..
+cd authentication && npm install && cd ..
+cd frontend && npm install && cd ..
 
-```bash
+# 3. Setup database schema
 cd database
-npm install
-cp .env.example .env
-# Edit .env with your Neon PostgreSQL connection string
-npm run prisma:migrate
-npm run start:dev
+npx prisma migrate deploy
+npx prisma generate
+cd ..
+
+# 4. Start all services
+./start-services.sh
 ```
 
-### 3. Setup Authentication Service
+### Using Start Script
 
 ```bash
-cd ../authentication
-npm install
-cp .env.example .env
-# Edit .env if needed
-npm run start:dev
+# Start all services in the background
+./start-services.sh
+
+# Check service status
+tail -f logs/database.log
+tail -f logs/backend.log
+tail -f logs/ai.log
+tail -f logs/authentication.log
+tail -f logs/frontend.log
+
+# Stop all services
+./stop-services.sh
 ```
 
-### 4. Setup Frontend
+### Access Points
 
-```bash
-cd ../frontend
-npm install
-cp .env.example .env.local
-# Edit .env.local if needed
-npm run dev
-```
+- **Frontend**: http://localhost:3000
+- **Authentication API**: http://localhost:3001
+- **Database API**: http://localhost:3002
+- **Backend API**: http://localhost:3003
+- **AI API**: http://localhost:3004
 
-### 5. Access the Application
+---
 
-- **Frontend**: http://localhost:3003
-- **Sign In**: http://localhost:3003/auth/signin
-- **Register**: http://localhost:3003/auth/register
-- **Auth API Docs**: http://localhost:3001/api/docs
-- **Database API Docs**: http://localhost:3002/api/docs
+## 📚 Documentation
 
-### Alternative: Use Helper Scripts
+Comprehensive guides are available in the `docs/` directory:
+
+### Core Documentation
+- **[Setup Guide](docs/SETUP_GUIDE.md)** - Detailed installation and configuration
+- **[Microservices Architecture](docs/MICROSERVICES_ARCHITECTURE.md)** - System design and architecture
+- **[Azure Integration](docs/AZURE_INTEGRATION_SUMMARY.md)** - Azure MCP setup and usage
+
+### Phase Guides
+- **[Phase 9: Cost Snapshots](docs/PHASE_9_IMPLEMENTATION.md)** - Background jobs and cost tracking
+- **[Gemini Rate Limiting](docs/GEMINI_RATE_LIMITING.md)** - Handling API rate limits
+
+### Phase 10 Documentation (NEW!)
+- **[End-to-End Testing Guide](docs/END_TO_END_TESTING_GUIDE.md)** - Comprehensive testing procedures
+- **[API Documentation](docs/API_DOCUMENTATION.md)** - Complete REST API reference
+- **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Production deployment to Azure
+
+### Feature Guides
+- **[Authentication Flow](docs/AUTHENTICATION_FLOW_GUIDE.md)** - Auth implementation details
+- **[Azure Data Flow](docs/AZURE_DATA_FLOW.md)** - Data flow diagrams
+- **[Profile Features](docs/PROFILE_QUICK_REFERENCE.md)** - User profile management
+
+---
 
 We've provided convenient scripts to start/stop all services:
 

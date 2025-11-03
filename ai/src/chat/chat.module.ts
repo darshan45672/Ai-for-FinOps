@@ -3,6 +3,7 @@ import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
 import { ChatGeminiService } from './chat-gemini.service';
 import { ChatGateway } from './chat.gateway';
+import { ResponseFormatterService } from './response-formatter.service';
 import { GeminiModule } from '../gemini/gemini.module';
 import { McpModule } from '../mcp/mcp.module';
 import { ContextModule } from '../context/context.module';
@@ -33,8 +34,8 @@ import { AzureMcpGatewayModule } from '../mcp/azure-mcp-gateway.module';
     AzureMcpGatewayModule,   // Import to use AzureMcpGatewayService
     ContextModule,           // Import to use ContextService for rich context building
   ],
-  providers: [ChatGeminiService, ChatGateway],
-  exports: [ChatGeminiService], // Export for use in other modules if needed
+  providers: [ChatGeminiService, ChatGateway, ResponseFormatterService],
+  exports: [ChatGeminiService, ResponseFormatterService], // Export for use in other modules if needed
 })
 export class ChatModule {}
 

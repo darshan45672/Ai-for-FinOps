@@ -106,38 +106,6 @@ export class ChatGeminiService {
       sections.push(``);
     }
 
-    // Tool context with priority guidance
-    if (richContext.tools) {
-      sections.push(`**� CRITICAL - Tool Selection Rules (MUST FOLLOW):**`);
-      sections.push(``);
-      sections.push(`**RULE 1: For ANY Azure resource query, you MUST use Azure MCP tools**`);
-      sections.push(`You have ${richContext.tools.azureMcpTools || 0} Azure MCP tools - these are your PRIMARY tools.`);
-      sections.push(``);
-      sections.push(`**MANDATORY Tool for Resource Queries:**`);
-      sections.push(`**For listing resource groups:**`);
-      sections.push(`USE: get_resource_groups_count`);
-      sections.push(`- Returns complete list with ALL resource group names and locations`);
-      sections.push(`- Parse the response completely and show ACTUAL names (not examples)`);
-      sections.push(`- Group by location or pattern for readability`);
-      sections.push(``);
-      sections.push(`**For listing resources:**`);
-      sections.push(`USE: get_azure_resources`);
-      sections.push(`- Can filter by: type, location, resourceGroup, status`);
-      sections.push(``);
-      sections.push(`**For cost data (use current year 2025!):**`);
-      sections.push(`USE: get_resource_costs with startDate and endDate`);
-      sections.push(`- Last 30 days: 2025-10-02 to 2025-11-01`);
-      sections.push(``);
-      sections.push(`**CRITICAL: ALWAYS parse tool responses and show REAL data:**`);
-      sections.push(`NEVER say "Here are a few examples...and many others"`);
-      sections.push(`ALWAYS show the actual resource names from the tool response`);
-      sections.push(``);
-    }
-
-    // Current date/time context (CRITICAL)
-    const currentDate = new Date();
-    const currentDateStr = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
-    const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth() + 1; // 1-12
     
     sections.push(`**IMPORTANT - Current Date/Time:**`);
