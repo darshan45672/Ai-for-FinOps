@@ -8,6 +8,7 @@ import { AzureModule } from './azure/azure.module';
 import { ChatModule } from './chat/chat.module';
 import { CostSnapshotModule } from './cost-snapshots/cost-snapshot.module';
 import { RecommendationModule } from './recommendations/recommendation.module';
+import { CostTrackingModule } from './cost-tracking/cost-tracking.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { RecommendationModule } from './recommendations/recommendation.module';
     ChatModule,
     CostSnapshotModule,
     RecommendationModule,
+    CostTrackingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

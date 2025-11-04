@@ -206,6 +206,18 @@ export class AzureService {
 
   // Azure Cost Records
   async createCostRecord(data: CreateAzureCostRecordDto) {
+    // Ensure subscription exists first
+    await this.prisma.azureSubscription.upsert({
+      where: { subscriptionId: data.subscriptionId },
+      create: {
+        subscriptionId: data.subscriptionId,
+        displayName: data.subscriptionId, // Use ID as display name if not provided
+        tenantId: 'unknown',
+        state: 'Enabled',
+      },
+      update: {}, // Don't update if exists
+    });
+
     return this.prisma.azureCostRecord.create({
       data: {
         subscriptionId: data.subscriptionId,

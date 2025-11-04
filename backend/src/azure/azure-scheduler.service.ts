@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AzureService } from './azure.service';
 import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, catchError, throwError } from 'rxjs';
+import { AxiosError } from 'axios';
 
 interface AzureResourceData {
   id: string;
@@ -142,9 +143,14 @@ export class AzureSchedulerService {
             endDate,
           );
 
+          this.logger.log(`Fetched cost data for subscription ${subscription.displayName}`);
+          this.logger.debug(`Cost data structure: ${JSON.stringify({ hasRows: !!costData?.rows, rowCount: costData?.rows?.length || 0 })}`);
+
           // Process and save cost records
-          if (costData && costData.properties && costData.properties.rows) {
-            for (const row of costData.properties.rows) {
+          if (costData && costData.rows && costData.rows.length > 0) {
+            this.logger.log(`Processing ${costData.rows.length} cost records`);
+            
+            for (const row of costData.rows) {
               await this.saveCostRecord({
                 subscriptionId: subscription.subscriptionId,
                 cost: row[0] || 0,
@@ -156,6 +162,8 @@ export class AzureSchedulerService {
               });
               totalCostRecords++;
             }
+          } else {
+            this.logger.warn(`No cost data available for subscription ${subscription.displayName}. Cost data: ${JSON.stringify(costData)}`);
           }
 
           this.logger.log(`Synced cost data for subscription ${subscription.displayName}`);
@@ -276,6 +284,24 @@ export class AzureSchedulerService {
   }
 
   /**
+   * Manual trigger for daily cost snapshot collection (NEW granular tracking)
+   */
+  async triggerCostSnapshotCollection(): Promise<{ message: string }> {
+    // Run collection in background
+    this.collectDailyCostSnapshots();
+    return { message: 'Daily cost snapshot collection triggered' };
+  }
+
+  /**
+   * Manual trigger for hourly cost metrics collection (NEW granular tracking)
+   */
+  async triggerCostMetricsCollection(): Promise<{ message: string }> {
+    // Run collection in background
+    this.collectHourlyCostMetrics();
+    return { message: 'Hourly cost metrics collection triggered' };
+  }
+
+  /**
    * Manual trigger for activity logs sync
    */
   async triggerActivityLogsSync(): Promise<{ message: string }> {
@@ -290,10 +316,21 @@ export class AzureSchedulerService {
       await firstValueFrom(
         this.httpService.post(`${this.databaseServiceUrl}/azure/subscriptions`, {
           subscriptions: [data],
-        }),
+        }).pipe(
+          catchError((error: AxiosError) => {
+            this.logger.error(`Failed to save subscription: ${error.message}`);
+            if (error.response) {
+              this.logger.error(`Response status: ${error.response.status}`);
+              this.logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
+            }
+            this.logger.error(`Request data: ${JSON.stringify(data, null, 2)}`);
+            return throwError(() => new Error(`Failed to save subscription: ${error.message}`));
+          }),
+        ),
       );
     } catch (error: any) {
-      this.logger.error(`Failed to save subscription: ${error.message}`);
+      // Rethrow to prevent saving resources without subscription
+      throw error;
     }
   }
 
@@ -302,22 +339,41 @@ export class AzureSchedulerService {
       await firstValueFrom(
         this.httpService.post(`${this.databaseServiceUrl}/azure/resources`, {
           resources: [data],
-        }),
+        }).pipe(
+          catchError((error: AxiosError) => {
+            this.logger.error(`Failed to save resource: ${error.message}`);
+            if (error.response) {
+              this.logger.error(`Response status: ${error.response.status}`);
+              this.logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
+            }
+            this.logger.error(`Request data: ${JSON.stringify(data, null, 2)}`);
+            return throwError(() => new Error(`Failed to save resource: ${error.message}`));
+          }),
+        ),
       );
     } catch (error: any) {
-      this.logger.error(`Failed to save resource: ${error.message}`);
+      // Error already logged in catchError
     }
   }
 
   private async saveCostRecord(data: any) {
     try {
-      await firstValueFrom(
+      this.logger.debug(`Saving cost record to ${this.databaseServiceUrl}/azure/costs`, JSON.stringify(data, null, 2));
+      
+      const response = await firstValueFrom(
         this.httpService.post(`${this.databaseServiceUrl}/azure/costs`, {
           costRecords: [data],
         }),
       );
+      
+      this.logger.debug(`Cost record saved successfully. Response status: ${response.status}`);
     } catch (error: any) {
       this.logger.error(`Failed to save cost record: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`Response status: ${error.response.status}`);
+        this.logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
+      }
+      this.logger.error(`Request data: ${JSON.stringify(data, null, 2)}`);
     }
   }
 
@@ -330,6 +386,11 @@ export class AzureSchedulerService {
       );
     } catch (error: any) {
       this.logger.error(`Failed to save activity log: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`Response status: ${error.response.status}`);
+        this.logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
+      }
+      this.logger.error(`Request data: ${JSON.stringify(data, null, 2)}`);
     }
   }
 
@@ -366,9 +427,9 @@ export class AzureSchedulerService {
   }
 
   /**
-   * Collect daily cost snapshots for all users
+   * Collect daily cost snapshots for all users with granular tracking
    * Cron expression: Every day at midnight UTC (00:00)
-   * This provides historical cost data for AI context
+   * This provides historical cost data for AI context and detailed service/resource tracking
    */
   @Cron('0 0 * * *', {
     name: 'daily-cost-snapshot',
@@ -380,7 +441,7 @@ export class AzureSchedulerService {
       return;
     }
 
-    this.logger.log('Starting daily cost snapshot collection...');
+    this.logger.log('Starting daily cost snapshot collection with granular tracking...');
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
@@ -390,7 +451,16 @@ export class AzureSchedulerService {
       const usersResponse = await firstValueFrom(
         this.httpService.get(`${this.databaseServiceUrl}/users`),
       );
-      const users = usersResponse.data;
+      const responseData = usersResponse.data;
+      
+      // Extract users array from response object
+      const users = responseData.users || responseData;
+      
+      if (!Array.isArray(users)) {
+        this.logger.error(`Expected users array but got: ${typeof users}. Data: ${JSON.stringify(responseData)}`);
+        throw new Error(`Invalid users response: expected array, got ${typeof users}`);
+      }
+      
       this.logger.log(`Collecting cost snapshots for ${users.length} users`);
 
       // Get all subscriptions
@@ -399,33 +469,184 @@ export class AzureSchedulerService {
       for (const user of users) {
         for (const subscription of subscriptions) {
           try {
-            // Fetch cost data for yesterday
+            // Fetch cost data for yesterday (returns CSV format with detailed columns)
             const costResult = await this.azureService.getCostData(
               subscription.subscriptionId,
               yesterday,
               today,
             );
 
-            // Extract rows from QueryResult
+            // Parse CSV columns and rows
+            const columns = costResult.columns || [];
             const rows = costResult.rows || [];
             
-            // Calculate total cost (PreTaxCost is typically in the first column)
+            this.logger.log(`Processing ${rows.length} cost detail records`);
+            this.logger.debug(`Available columns: ${JSON.stringify(columns.map((c: any) => c.name || c))}`);
+            
+            // Find column indexes for efficient parsing
+            const colIndexes = this.mapCsvColumns(columns);
+            this.logger.debug(`Mapped column indexes: ${JSON.stringify(colIndexes)}`);
+            
+            // Aggregate costs by service and resource
+            const serviceCosts = new Map<string, { cost: number; resourceGroup: string; region: string }>();
+            const resourceBreakdowns = new Map<string, {
+              resourceName: string;
+              resourceGroup: string;
+              resourceType: string;
+              meterCategory: string;
+              meterSubCategory: string;
+              meterName: string;
+              quantity: number;
+              unitOfMeasure: string;
+              unitPrice: number;
+              cost: number;
+              currency: string;
+            }>();
+            
             let totalCost = 0;
             const serviceBreakdown: Record<string, number> = {};
             const resourceCosts: Array<{name: string; cost: number}> = [];
 
-            rows.forEach((row: any[]) => {
-              // row format: [cost, resourceGroup, serviceName]
-              const cost = parseFloat(row[0]) || 0;
-              const resourceGroup = row[1] || 'Unknown';
-              const serviceName = row[2] || 'Other';
-              
-              totalCost += cost;
-              serviceBreakdown[serviceName] = (serviceBreakdown[serviceName] || 0) + cost;
-              resourceCosts.push({ name: resourceGroup, cost });
+            // Process each cost detail row from CSV
+            rows.forEach((row: any[], rowIndex: number) => {
+              try {
+                const date = row[colIndexes.date] || yesterday.toISOString().split('T')[0];
+                const resourceId = row[colIndexes.resourceId] || '';
+                const resourceName = row[colIndexes.resourceName] || 'Unknown';
+                const resourceType = row[colIndexes.resourceType] || 'Unknown';
+                const resourceGroup = row[colIndexes.resourceGroup] || 'Unknown';
+                const meterCategory = row[colIndexes.meterCategory] || 'Unknown';
+                const meterSubCategory = row[colIndexes.meterSubCategory] || '';
+                const meterName = row[colIndexes.meterName] || 'Unknown';
+                const quantity = parseFloat(row[colIndexes.quantity]) || 0;
+                const unitOfMeasure = row[colIndexes.unitOfMeasure] || '';
+                const unitPrice = parseFloat(row[colIndexes.unitPrice]) || 0;
+                const cost = parseFloat(row[colIndexes.cost]) || 0;
+                const currency = row[colIndexes.currency] || 'USD';
+                
+                // Legacy API provides ServiceName directly
+                const legacyServiceName = colIndexes.serviceName !== undefined ? row[colIndexes.serviceName] : null;
+                
+                // Log first row to debug column mapping
+                if (rowIndex === 0) {
+                  this.logger.debug(`First row data: ${JSON.stringify({
+                    date, resourceId, resourceName, resourceType, resourceGroup,
+                    meterCategory, meterName, quantity, cost, currency, legacyServiceName
+                  })}`);
+                }
+                
+                totalCost += cost;
+                
+                // Determine service name - use legacy ServiceName if available, otherwise map from resourceType
+                let serviceName: string;
+                let serviceType: string;
+                
+                if (legacyServiceName) {
+                  // Use ServiceName from legacy API and map to our service types
+                  serviceName = this.normalizeServiceName(legacyServiceName);
+                  serviceType = this.mapLegacyServiceNameToType(legacyServiceName);
+                } else {
+                  // Modern API - use resource type mapping
+                  serviceName = this.mapResourceTypeToService(resourceType, resourceName);
+                  serviceType = this.mapResourceTypeToServiceType(resourceType);
+                }
+                
+                // Aggregate by service (skip if unknown/other)
+                if (serviceName && serviceType && serviceType !== 'OTHER') {
+                  const serviceKey = `${serviceName}-${serviceType}`;
+                  const existing = serviceCosts.get(serviceKey) || { cost: 0, resourceGroup, region: 'eastus' };
+                  serviceCosts.set(serviceKey, {
+                    cost: existing.cost + cost,
+                    resourceGroup,
+                    region: existing.region,
+                  });
+                  
+                  serviceBreakdown[serviceName] = (serviceBreakdown[serviceName] || 0) + cost;
+                }
+                
+                // Store resource breakdown (meter-level detail)
+                const resourceKey = `${resourceId}-${meterName}`;
+                resourceBreakdowns.set(resourceKey, {
+                  resourceName,
+                  resourceGroup,
+                  resourceType,
+                  meterCategory,
+                  meterSubCategory,
+                  meterName,
+                  quantity,
+                  unitOfMeasure,
+                  unitPrice,
+                  cost,
+                  currency,
+                });
+                
+                resourceCosts.push({ name: resourceGroup, cost });
+              } catch (parseError: any) {
+                this.logger.warn(`Failed to parse cost row: ${parseError.message}`);
+              }
             });
 
-            // Get top 10 resources by cost
+            // Save granular service costs
+            for (const [serviceKey, data] of serviceCosts.entries()) {
+              const [serviceName, serviceType] = serviceKey.split('-');
+              
+              try {
+                const payload = {
+                  serviceName,
+                  serviceType,
+                  date: yesterday,
+                  cost: data.cost,
+                  currency: 'USD',
+                  subscriptionId: subscription.subscriptionId,
+                  resourceGroup: data.resourceGroup,
+                  region: data.region,
+                };
+                
+                // Log first service cost payload for debugging
+                if (serviceCosts.size > 0 && Array.from(serviceCosts.keys())[0] === serviceKey) {
+                  this.logger.debug(`First service cost payload: ${JSON.stringify(payload, null, 2)}`);
+                }
+                
+                await this.saveServiceCost(payload);
+                
+                this.logger.debug(`Saved service cost for ${serviceName} (${serviceType}): $${data.cost.toFixed(4)}`);
+              } catch (error: any) {
+                this.logger.error(`Failed to save service cost for ${serviceName}: ${error.message}`);
+              }
+            }
+
+            // Save resource breakdowns (limit to top 50 by cost to avoid overwhelming database)
+            // Skip if using legacy API (no meter data available)
+            const hasDetailedMeterData = resourceBreakdowns.size > 0 && 
+              Array.from(resourceBreakdowns.values()).some(b => b.meterName !== 'Unknown' && b.resourceType !== 'Unknown');
+            
+            let breakdownsSaved = 0;
+            if (hasDetailedMeterData) {
+              const topBreakdowns = Array.from(resourceBreakdowns.values())
+                .sort((a, b) => b.cost - a.cost)
+                .slice(0, 50);
+              
+              for (const breakdown of topBreakdowns) {
+                try {
+                  await this.saveResourceCostBreakdown({
+                    date: yesterday,
+                    subscriptionId: subscription.subscriptionId,
+                    ...breakdown,
+                  });
+                  
+                  this.logger.debug(`Saved resource breakdown for ${breakdown.resourceName}: ${breakdown.meterName} = $${breakdown.cost.toFixed(4)}`);
+                  breakdownsSaved++;
+                } catch (error: any) {
+                  this.logger.error(`Failed to save resource breakdown: ${error.message}`);
+                }
+              }
+              
+              this.logger.log(`Saved ${breakdownsSaved} resource breakdowns (modern API with meter data)`);
+            } else {
+              this.logger.warn(`Skipping resource breakdowns - legacy API does not provide meter-level data`);
+            }
+
+            // Get top 10 resources by cost for legacy snapshot
             const topResources = resourceCosts
               .sort((a, b) => b.cost - a.cost)
               .slice(0, 10)
@@ -435,7 +656,7 @@ export class AzureSchedulerService {
                 type: 'ResourceGroup',
               }));
 
-            // Save cost snapshot to database
+            // Save legacy cost snapshot for backward compatibility
             await this.saveCostSnapshot({
               userId: user.id,
               subscriptionId: subscription.subscriptionId,
@@ -446,7 +667,7 @@ export class AzureSchedulerService {
             });
 
             this.logger.log(
-              `Saved cost snapshot for user ${user.username}, subscription ${subscription.displayName}: $${totalCost.toFixed(2)}`
+              `Saved cost snapshot for user ${user.username}, subscription ${subscription.displayName}: $${totalCost.toFixed(2)} (${serviceCosts.size} services, ${breakdownsSaved} resource breakdowns)`
             );
           } catch (error: any) {
             this.logger.error(
@@ -463,6 +684,304 @@ export class AzureSchedulerService {
   }
 
   /**
+   * Collect hourly cost metrics for real-time monitoring
+   * Cron expression: Every hour at minute 0 (00:00, 01:00, 02:00, etc.)
+   * This provides near real-time cost tracking for critical resources
+   */
+  @Cron('0 * * * *', {
+    name: 'hourly-cost-metrics',
+    timeZone: 'UTC',
+  })
+  async collectHourlyCostMetrics() {
+    if (!this.azureService.isConfigured()) {
+      this.logger.warn('Azure credentials not configured. Skipping hourly cost metrics.');
+      return;
+    }
+
+    this.logger.log('Starting hourly cost metrics collection...');
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+    try {
+      // Get all subscriptions
+      const subscriptions = await this.azureService.getSubscriptions();
+
+      for (const subscription of subscriptions) {
+        try {
+          // Fetch cost data for the past hour
+          const costResult = await this.azureService.getCostData(
+            subscription.subscriptionId,
+            oneHourAgo,
+            now,
+          );
+
+          const columns = costResult.columns || [];
+          const rows = costResult.rows || [];
+          
+          this.logger.log(`Processing ${rows.length} hourly cost records for subscription ${subscription.displayName}`);
+          
+          if (rows.length === 0) {
+            this.logger.warn(`No cost data available for the past hour. Azure may not have processed recent usage yet.`);
+            continue;
+          }
+          
+          const colIndexes = this.mapCsvColumns(columns);
+          
+          // Aggregate costs by service for the hour
+          const serviceCosts = new Map<string, { cost: number; resourceGroup: string; region: string }>();
+
+          rows.forEach((row: any[]) => {
+            try {
+              const resourceName = row[colIndexes.resourceName] || 'Unknown';
+              const resourceType = row[colIndexes.resourceType] || 'Unknown';
+              const resourceGroup = row[colIndexes.resourceGroup] || 'Unknown';
+              const cost = parseFloat(row[colIndexes.cost]) || 0;
+              
+              // Legacy API provides ServiceName directly
+              const legacyServiceName = colIndexes.serviceName !== undefined ? row[colIndexes.serviceName] : null;
+              
+              // Determine service name - use legacy ServiceName if available, otherwise map from resourceType
+              let serviceName: string;
+              let serviceType: string;
+              
+              if (legacyServiceName) {
+                serviceName = this.normalizeServiceName(legacyServiceName);
+                serviceType = this.mapLegacyServiceNameToType(legacyServiceName);
+              } else {
+                serviceName = this.mapResourceTypeToService(resourceType, resourceName);
+                serviceType = this.mapResourceTypeToServiceType(resourceType);
+              }
+              
+              if (serviceName && serviceType && serviceType !== 'OTHER') {
+                const serviceKey = `${serviceName}-${serviceType}`;
+                const existing = serviceCosts.get(serviceKey) || { cost: 0, resourceGroup, region: 'eastus' };
+                serviceCosts.set(serviceKey, {
+                  cost: existing.cost + cost,
+                  resourceGroup,
+                  region: existing.region,
+                });
+              }
+            } catch (parseError: any) {
+              this.logger.warn(`Failed to parse hourly cost row: ${parseError.message}`);
+            }
+          });
+
+          // Save hourly service costs (these accumulate throughout the day)
+          for (const [serviceKey, data] of serviceCosts.entries()) {
+            const [serviceName, serviceType] = serviceKey.split('-');
+            
+            try {
+              await this.saveServiceCost({
+                serviceName,
+                serviceType,
+                date: new Date(now.toISOString().split('T')[0]), // Use current date (midnight UTC)
+                cost: data.cost,
+                currency: 'USD',
+                subscriptionId: subscription.subscriptionId,
+                resourceGroup: data.resourceGroup,
+                region: data.region,
+              });
+              
+              this.logger.debug(`Saved hourly service cost for ${serviceName}: $${data.cost.toFixed(4)}`);
+            } catch (error: any) {
+              this.logger.error(`Failed to save hourly service cost: ${error.message}`);
+            }
+          }
+
+          this.logger.log(`Hourly cost metrics saved for subscription ${subscription.displayName}: ${serviceCosts.size} services`);
+        } catch (error: any) {
+          this.logger.error(
+            `Failed to collect hourly metrics for subscription ${subscription.subscriptionId}: ${error.message}`
+          );
+        }
+      }
+
+      this.logger.log('Hourly cost metrics collection completed');
+    } catch (error: any) {
+      this.logger.error(`Failed to collect hourly cost metrics: ${error.message}`);
+    }
+  }
+
+  /**
+   * Map CSV column names to indexes for efficient parsing
+   */
+  private mapCsvColumns(columns: any[]): Record<string, number> {
+    const indexes: Record<string, number> = {};
+    
+    columns.forEach((col, index) => {
+      const colName = col.name?.toLowerCase() || col.toLowerCase() || '';
+      
+      if (colName.includes('date') || colName === 'usagedate') {
+        indexes.date = index;
+      } else if (colName.includes('resourceid')) {
+        indexes.resourceId = index;
+      } else if (colName.includes('resourcename')) {
+        indexes.resourceName = index;
+      } else if (colName.includes('resourcetype')) {
+        indexes.resourceType = index;
+      } else if (colName.includes('resourcegroup')) {
+        indexes.resourceGroup = index;
+      } else if (colName.includes('metercategory')) {
+        indexes.meterCategory = index;
+      } else if (colName.includes('metersubcategory')) {
+        indexes.meterSubCategory = index;
+      } else if (colName.includes('metername')) {
+        indexes.meterName = index;
+      } else if (colName.includes('quantity')) {
+        indexes.quantity = index;
+      } else if (colName.includes('unitofmeasure')) {
+        indexes.unitOfMeasure = index;
+      } else if (colName.includes('unitprice')) {
+        indexes.unitPrice = index;
+      } else if (colName.includes('cost') || colName.includes('pretaxcost')) {
+        indexes.cost = index;
+      } else if (colName.includes('currency')) {
+        indexes.currency = index;
+      } else if (colName === 'servicename' || colName.includes('service')) {
+        indexes.serviceName = index; // Legacy API provides ServiceName column
+      }
+    });
+    
+    return indexes;
+  }
+
+  /**
+   * Map Azure resource type to service name
+   */
+  private mapResourceTypeToService(resourceType: string, resourceName: string): string {
+    const type = resourceType.toLowerCase();
+    const name = resourceName.toLowerCase();
+    
+    // Container Apps (5 services)
+    if (type.includes('containerapp') || type.includes('microsoft.app/containerapps')) {
+      if (name.includes('frontend') || name.includes('ca-frontend')) return 'ca-frontend';
+      if (name.includes('ai-service') || name.includes('ca-ai')) return 'ca-ai-service';
+      if (name.includes('authentication') || name.includes('ca-auth')) return 'ca-authentication';
+      if (name.includes('backend') || name.includes('ca-backend')) return 'ca-backend';
+      if (name.includes('database') || name.includes('ca-database')) return 'ca-database';
+      return 'container-apps';
+    }
+    
+    // PostgreSQL Flexible Server
+    if (type.includes('postgres') || type.includes('microsoft.dbforpostgresql')) {
+      return 'psql-finops-prod';
+    }
+    
+    // Redis Cache
+    if (type.includes('redis') || type.includes('microsoft.cache')) {
+      return 'redis-finops-prod';
+    }
+    
+    // Application Gateway
+    if (type.includes('applicationgateway') || type.includes('microsoft.network/applicationgateways')) {
+      return 'app-gateway';
+    }
+    
+    // Virtual Network
+    if (type.includes('virtualnetwork') || type.includes('microsoft.network/virtualnetworks')) {
+      return 'vnet';
+    }
+    
+    // Storage Account
+    if (type.includes('storageaccount') || type.includes('microsoft.storage')) {
+      return 'storage';
+    }
+    
+    // Log Analytics / Monitor
+    if (type.includes('loganalytics') || type.includes('microsoft.operationalinsights')) {
+      return 'log-analytics';
+    }
+    
+    return 'other';
+  }
+
+  /**
+   * Map Azure resource type to ServiceType enum
+   */
+  private mapResourceTypeToServiceType(resourceType: string): string {
+    const type = resourceType.toLowerCase();
+    
+    if (type.includes('containerapp')) return 'CONTAINER_APP';
+    if (type.includes('postgres')) return 'DATABASE';
+    if (type.includes('redis')) return 'CACHE';
+    if (type.includes('applicationgateway')) return 'LOAD_BALANCER';
+    if (type.includes('virtualnetwork')) return 'NETWORK';
+    if (type.includes('storage')) return 'STORAGE';
+    if (type.includes('loganalytics') || type.includes('monitor')) return 'MONITORING';
+    
+    return 'OTHER';
+  }
+
+  /**
+   * Save service cost to database via cost tracking API
+   */
+  private async saveServiceCost(data: {
+    serviceName: string;
+    serviceType: string;
+    date: Date;
+    cost: number;
+    currency: string;
+    subscriptionId: string;
+    resourceGroup: string;
+    region: string;
+  }) {
+    try {
+      await firstValueFrom(
+        this.httpService.post(
+          `${this.databaseServiceUrl}/cost-tracking/service-costs`,
+          data,
+          { timeout: 5000 }
+        ),
+      );
+    } catch (error: any) {
+      this.logger.error(`Failed to save service cost: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`Response status: ${error.response.status}`);
+        this.logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
+      }
+      this.logger.error(`Request data: ${JSON.stringify(data, null, 2)}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Save resource cost breakdown to database via cost tracking API
+   */
+  private async saveResourceCostBreakdown(data: {
+    date: Date;
+    subscriptionId: string;
+    resourceName: string;
+    resourceGroup: string;
+    resourceType: string;
+    meterCategory: string;
+    meterSubCategory: string;
+    meterName: string;
+    quantity: number;
+    unitOfMeasure: string;
+    unitPrice: number;
+    cost: number;
+    currency: string;
+  }) {
+    try {
+      await firstValueFrom(
+        this.httpService.post(
+          `${this.databaseServiceUrl}/cost-tracking/resource-cost-breakdowns`,
+          data,
+          { timeout: 5000 }
+        ),
+      );
+    } catch (error: any) {
+      this.logger.error(`Failed to save resource breakdown: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`Response status: ${error.response.status}`);
+        this.logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
+      }
+      this.logger.error(`Request data: ${JSON.stringify(data, null, 2)}`);
+      throw error;
+    }
+  }
+
+  /**
    * Save cost snapshot to database
    */
   private async saveCostSnapshot(data: {
@@ -474,12 +993,94 @@ export class AzureSchedulerService {
     topResources: any[];
   }) {
     try {
-      await firstValueFrom(
+      this.logger.debug(`Saving cost snapshot to ${this.databaseServiceUrl}/cost-snapshots`);
+      this.logger.debug(`Snapshot data: ${JSON.stringify(data, null, 2)}`);
+      
+      const response = await firstValueFrom(
         this.httpService.post(`${this.databaseServiceUrl}/cost-snapshots`, data),
       );
+      
+      this.logger.log(`Cost snapshot saved successfully. Response status: ${response.status}`);
     } catch (error: any) {
       this.logger.error(`Failed to save cost snapshot: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`Response status: ${error.response.status}`);
+        this.logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
+      }
+      this.logger.error(`Request data: ${JSON.stringify(data, null, 2)}`);
       throw error;
     }
+  }
+
+  /**
+   * Normalize legacy ServiceName to our standard service names
+   */
+  private normalizeServiceName(serviceName: string): string {
+    const normalized = serviceName.toLowerCase().trim();
+    
+    // Map Azure service names to our standard names
+    const mapping: Record<string, string> = {
+      'virtual machines': 'Compute',
+      'vm': 'Compute',
+      'compute': 'Compute',
+      'app service': 'App Service',
+      'web apps': 'App Service',
+      'storage': 'Storage',
+      'blob storage': 'Storage',
+      'cosmos db': 'Cosmos DB',
+      'cosmosdb': 'Cosmos DB',
+      'sql database': 'SQL Database',
+      'azure sql': 'SQL Database',
+      'functions': 'Functions',
+      'azure functions': 'Functions',
+      'cognitive services': 'AI Services',
+      'openai': 'AI Services',
+      'ai': 'AI Services',
+      'networking': 'Networking',
+      'virtual network': 'Networking',
+      'load balancer': 'Networking',
+      'container': 'Container',
+      'kubernetes': 'Container',
+      'aks': 'Container',
+    };
+    
+    for (const [key, value] of Object.entries(mapping)) {
+      if (normalized.includes(key)) {
+        return value;
+      }
+    }
+    
+    // If no match, capitalize first letter of each word
+    return serviceName
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  /**
+   * Map legacy ServiceName to our service type enum
+   */
+  private mapLegacyServiceNameToType(serviceName: string): string {
+    const normalized = serviceName.toLowerCase().trim();
+    
+    if (normalized.includes('compute') || normalized.includes('virtual machine') || normalized.includes('vm')) {
+      return 'COMPUTE';
+    } else if (normalized.includes('storage') || normalized.includes('blob')) {
+      return 'STORAGE';
+    } else if (normalized.includes('database') || normalized.includes('sql') || normalized.includes('cosmos')) {
+      return 'DATABASE';
+    } else if (normalized.includes('function')) {
+      return 'COMPUTE'; // Functions are compute workloads
+    } else if (normalized.includes('app service') || normalized.includes('web')) {
+      return 'COMPUTE'; // App Service is compute
+    } else if (normalized.includes('network') || normalized.includes('load balancer')) {
+      return 'NETWORKING';
+    } else if (normalized.includes('container') || normalized.includes('kubernetes') || normalized.includes('aks')) {
+      return 'CONTAINER';
+    } else if (normalized.includes('ai') || normalized.includes('cognitive') || normalized.includes('openai')) {
+      return 'AI_ML';
+    }
+    
+    return 'OTHER';
   }
 }

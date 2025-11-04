@@ -466,3 +466,155 @@ model AiAction {
   @@index([createdAt])
   @@map("ai_actions")
 }
+
+// Enhanced Cost Tracking Models for Granular Analysis
+
+// Service-level cost tracking for individual Azure services
+model ServiceCostRecord {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  serviceName    String // 'ca-frontend', 'ca-ai-service', 'psql-finops-prod', 'redis-finops-prod', 'app-gateway', etc.
+  serviceType    String // 'ContainerApp', 'PostgreSQL', 'Redis', 'AppGateway', 'VNet', etc.
+  resourceId     String? // Full Azure resource ID if available
+  date           DateTime @db.Date
+  cost           Decimal  @db.Decimal(10, 4) // Higher precision for granular tracking
+  currency       String   @default("USD")
+  
+  // Detailed metrics
+  meterCategory  String? // 'Virtual Machines', 'Storage', 'Networking', etc.
+  meterName      String? // Specific meter like 'D2s v3', 'Premium SSD'
+  quantity       Decimal? @db.Decimal(15, 4)
+  unitOfMeasure  String? // 'Hours', 'GB', 'Transactions', etc.
+  unitPrice      Decimal? @db.Decimal(10, 6)
+  
+  // Metadata for categorization
+  tags           Json? // Resource tags for filtering and grouping
+  region         String?
+  resourceGroup  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([subscriptionId, serviceName, date])
+  @@index([subscriptionId])
+  @@index([serviceName])
+  @@index([serviceType])
+  @@index([date])
+  @@index([resourceId])
+  @@map("service_cost_records")
+}
+
+// AI Usage cost tracking (Gemini, Azure OpenAI, etc.)
+model AiUsageCost {
+  id              String   @id @default(cuid())
+  conversationId  String?
+  messageId       String?
+  userId          String
+  aiProvider      String // 'google_gemini', 'azure_openai', 'anthropic', etc.
+  modelName       String // 'gemini-1.5-pro', 'gemini-1.5-flash', 'gpt-4', etc.
+  
+  // Token usage
+  promptTokens    Int
+  completionTokens Int
+  totalTokens     Int
+  
+  // Cost calculation
+  estimatedCost   Decimal @db.Decimal(10, 6) // High precision for small costs
+  currency        String  @default("USD")
+  
+  // Pricing info (for reference)
+  promptTokenPrice    Decimal? @db.Decimal(10, 9) // Price per 1000 tokens
+  completionTokenPrice Decimal? @db.Decimal(10, 9)
+  
+  // Metadata
+  toolsUsed       String[]
+  responseTime    Int? // milliseconds
+  wasSuccessful   Boolean @default(true)
+  errorMessage    String?
+
+  timestamp DateTime @default(now())
+  date      DateTime @db.Date @default(now())
+
+  @@index([conversationId])
+  @@index([messageId])
+  @@index([userId])
+  @@index([aiProvider])
+  @@index([date])
+  @@index([timestamp])
+  @@map("ai_usage_costs")
+}
+
+// User-level cost allocation for multi-tenant scenarios
+model UserCostAllocation {
+  id             String   @id @default(cuid())
+  userId         String
+  subscriptionId String?
+  date           DateTime @db.Date
+  
+  // Azure costs allocated to this user
+  azureServiceCosts Decimal @db.Decimal(10, 4) @default(0)
+  
+  // AI API costs for this user
+  aiApiCosts     Decimal @db.Decimal(10, 6) @default(0)
+  
+  // Total cost
+  totalCost      Decimal @db.Decimal(10, 4)
+  currency       String  @default("USD")
+  
+  // Breakdown by service
+  costBreakdown  Json? // { "compute": 10.5, "ai_gemini": 0.25, "storage": 2.3, ... }
+  
+  // Usage metrics for allocation
+  resourceUsage  Json? // { "conversation_count": 45, "api_calls": 120, "storage_gb": 10, ... }
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([date])
+  @@map("user_cost_allocations")
+}
+
+// Resource-level cost breakdown with meter details
+model ResourceCostBreakdown {
+  id              String   @id @default(cuid())
+  subscriptionId  String
+  resourceId      String?
+  resourceName    String
+  resourceType    String
+  resourceGroup   String
+  date            DateTime @db.Date
+  
+  // Meter details
+  meterCategory   String
+  meterSubCategory String?
+  meterName       String
+  meterId         String?
+  
+  // Cost and usage
+  quantity        Decimal @db.Decimal(15, 4)
+  unitOfMeasure   String
+  unitPrice       Decimal @db.Decimal(10, 6)
+  cost            Decimal @db.Decimal(10, 4)
+  currency        String  @default("USD")
+  
+  // Pricing model
+  pricingModel    String? // 'OnDemand', 'Reserved', 'Spot', etc.
+  chargeType      String? // 'Usage', 'Purchase', 'Refund', etc.
+  
+  // Additional context
+  tags            Json?
+  region          String?
+  availabilityZone String?
+
+  createdAt DateTime @default(now())
+
+  @@index([subscriptionId])
+  @@index([resourceId])
+  @@index([resourceGroup])
+  @@index([date])
+  @@index([meterCategory])
+  @@map("resource_cost_breakdowns")
+}
+

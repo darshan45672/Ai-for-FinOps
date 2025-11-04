@@ -3,6 +3,7 @@ import { GeminiService } from '../gemini/gemini.service';
 import { McpToolsService } from '../mcp/mcp-tools.service';
 import { ContextService } from '../context/context.service';
 import { AzureMcpGatewayService } from '../mcp/azure-mcp-gateway.service';
+import { AiCostTrackerService } from '../ai-cost-tracker/ai-cost-tracker.service';
 import { FunctionCallingConfigMode } from '@google/genai';
 
 interface Message {
@@ -20,6 +21,7 @@ export class ChatGeminiService {
     private readonly mcpToolsService: McpToolsService,
     private readonly contextService: ContextService,
     private readonly azureMcpGateway: AzureMcpGatewayService,
+    private readonly aiCostTracker: AiCostTrackerService,
   ) {}
 
   /**
@@ -532,6 +534,30 @@ export class ChatGeminiService {
         if (response.text) {
           finalResponse = response.text;
           this.logger.debug(`Got final response: ${finalResponse.substring(0, 100)}...`);
+          
+          // Track AI usage cost if usage metadata is available
+          if (response.usageMetadata) {
+            const toolsUsed = response.functionCalls ? response.functionCalls.map(fc => fc.name || 'unknown') : [];
+            
+            this.aiCostTracker.trackUsage({
+              conversationId,
+              messageId: undefined, // Will be set by database service
+              userId,
+              aiProvider: 'google_gemini',
+              modelName: model,
+              tokenUsage: {
+                promptTokens: response.usageMetadata.promptTokenCount || 0,
+                completionTokens: response.usageMetadata.candidatesTokenCount || 0,
+                totalTokens: response.usageMetadata.totalTokenCount || 0,
+              },
+              toolsUsed,
+              responseTime: undefined, // TODO: Calculate from start time
+              wasSuccessful: true,
+            }).catch(err => {
+              this.logger.error(`Failed to track AI cost: ${err.message}`);
+            });
+          }
+          
           break;
         }
 

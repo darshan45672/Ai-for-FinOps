@@ -30,6 +30,24 @@ export class AzureController {
   }
 
   /**
+   * Manually trigger daily cost snapshot collection (NEW granular tracking)
+   */
+  @Post('sync/cost-snapshots')
+  async triggerCostSnapshotCollection() {
+    this.logger.log('Manual cost snapshot collection triggered via API');
+    return this.azureSchedulerService.triggerCostSnapshotCollection();
+  }
+
+  /**
+   * Manually trigger hourly cost metrics collection (NEW granular tracking)
+   */
+  @Post('sync/cost-metrics')
+  async triggerCostMetricsCollection() {
+    this.logger.log('Manual cost metrics collection triggered via API');
+    return this.azureSchedulerService.triggerCostMetricsCollection();
+  }
+
+  /**
    * Manually trigger Azure activity logs sync
    */
   @Post('sync/activity-logs')

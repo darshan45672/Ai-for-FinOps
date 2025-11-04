@@ -92,9 +92,195 @@ export class AzureService {
   }
 
   /**
-   * Fetch cost data using Azure Cost Management API
+   * Fetch cost data using Azure Cost Management Cost Details API
+   * This uses the modern generateCostDetailsReport API instead of the deprecated query.usage
+   * 
+   * Workflow:
+   * 1. POST to generate report
+   * 2. Poll operation status
+   * 3. Download and parse CSV
    */
   async getCostData(subscriptionId: string, startDate: Date, endDate: Date) {
+    try {
+      const scope = `/subscriptions/${subscriptionId}`;
+      
+      // Step 1: Generate cost details report
+      const tokenResponse = await this.credential.getToken(
+        'https://management.azure.com/.default',
+      );
+      
+      const generateUrl = `https://management.azure.com${scope}/providers/Microsoft.CostManagement/generateCostDetailsReport?api-version=2025-03-01`;
+      
+      const requestBody = {
+        metric: 'ActualCost',
+        timePeriod: {
+          start: startDate.toISOString().split('T')[0],
+          end: endDate.toISOString().split('T')[0],
+        },
+      };
+      
+      this.logger.log(`Generating cost details report for subscription ${subscriptionId} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+      
+      const generateResponse = await firstValueFrom(
+        this.httpService.post(generateUrl, requestBody, {
+          headers: {
+            'Authorization': `Bearer ${tokenResponse.token}`,
+            'Content-Type': 'application/json',
+          },
+        }),
+      );
+      
+      // Extract operation ID from Location header or response
+      const locationHeader = generateResponse.headers['location'];
+      const operationId = this.extractOperationId(locationHeader);
+      
+      if (!operationId) {
+        this.logger.error('Failed to extract operation ID from response');
+        throw new Error('No operation ID returned from generateCostDetailsReport');
+      }
+      
+      this.logger.log(`Cost report generation started. Operation ID: ${operationId}`);
+      
+      // Step 2: Poll for status until complete
+      const statusUrl = `https://management.azure.com${scope}/providers/Microsoft.CostManagement/costDetailsOperationStatus/${operationId}?api-version=2025-03-01`;
+      
+      let reportReady = false;
+      let attempts = 0;
+      const maxAttempts = 60; // Wait up to 5 minutes (60 * 5 seconds)
+      let downloadUrl: string | null = null;
+      
+      while (!reportReady && attempts < maxAttempts) {
+        attempts++;
+        
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds between polls
+        
+        const statusResponse = await firstValueFrom(
+          this.httpService.get(statusUrl, {
+            headers: {
+              'Authorization': `Bearer ${tokenResponse.token}`,
+            },
+          }),
+        );
+        
+        const status = statusResponse.data;
+        this.logger.debug(`Poll attempt ${attempts}: Status = ${status.status}`);
+        
+        if (status.status === 'Completed') {
+          reportReady = true;
+          downloadUrl = status.properties?.reportUrl || status.properties?.downloadUrl;
+          this.logger.log(`Cost report ready. Download URL obtained.`);
+        } else if (status.status === 'Failed') {
+          throw new Error(`Cost report generation failed: ${status.error?.message || 'Unknown error'}`);
+        }
+        // Status can be: InProgress, Queued, Completed, Failed
+      }
+      
+      if (!reportReady || !downloadUrl) {
+        throw new Error(`Cost report generation timed out after ${attempts} attempts`);
+      }
+      
+      // Step 3: Download and parse CSV
+      this.logger.log(`Downloading cost details CSV from ${downloadUrl}`);
+      
+      const csvResponse = await firstValueFrom(
+        this.httpService.get(downloadUrl, {
+          responseType: 'text',
+        }),
+      );
+      
+      const csvData = csvResponse.data as string;
+      
+      // Parse CSV to extract cost records
+      const parsedData = this.parseCostDetailsCsv(csvData);
+      
+      this.logger.log(`Parsed ${parsedData.rows.length} cost records from CSV`);
+      
+      return parsedData;
+    } catch (error: any) {
+      this.logger.error(`Failed to fetch cost data for subscription ${subscriptionId}: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`API Response Status: ${error.response.status}`);
+        this.logger.error(`API Response Data: ${JSON.stringify(error.response.data)}`);
+      }
+      
+      // Fallback to old API if new API fails
+      this.logger.warn('Falling back to legacy query.usage API');
+      return this.getCostDataLegacy(subscriptionId, startDate, endDate);
+    }
+  }
+  
+  /**
+   * Extract operation ID from Location header
+   */
+  private extractOperationId(locationHeader: string): string | null {
+    if (!locationHeader) return null;
+    
+    const match = locationHeader.match(/costDetailsOperationStatus\/([^?]+)/);
+    return match ? match[1] : null;
+  }
+  
+  /**
+   * Parse CSV cost details into structured format
+   */
+  private parseCostDetailsCsv(csvData: string): { columns: any[], rows: any[][] } {
+    const lines = csvData.split('\n').filter(line => line.trim());
+    
+    if (lines.length === 0) {
+      return { columns: [], rows: [] };
+    }
+    
+    // First line is header
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    
+    // Map to column objects
+    const columns = headers.map(name => ({
+      name,
+      type: 'string',
+    }));
+    
+    // Parse data rows
+    const rows: any[][] = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+      const values = this.parseCsvLine(lines[i]);
+      rows.push(values);
+    }
+    
+    return { columns, rows };
+  }
+  
+  /**
+   * Parse a single CSV line handling quoted values
+   */
+  private parseCsvLine(line: string): any[] {
+    const values: any[] = [];
+    let currentValue = '';
+    let insideQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        insideQuotes = !insideQuotes;
+      } else if (char === ',' && !insideQuotes) {
+        values.push(currentValue.trim());
+        currentValue = '';
+      } else {
+        currentValue += char;
+      }
+    }
+    
+    // Push last value
+    values.push(currentValue.trim());
+    
+    return values;
+  }
+  
+  /**
+   * Legacy cost data fetch using deprecated query.usage API
+   * Kept as fallback
+   */
+  private async getCostDataLegacy(subscriptionId: string, startDate: Date, endDate: Date) {
     try {
       const scope = `/subscriptions/${subscriptionId}`;
       const client = new CostManagementClient(this.credential);
@@ -127,12 +313,29 @@ export class AzureService {
         },
       };
 
+      this.logger.log(`Querying cost data (legacy API) for subscription ${subscriptionId}`);
       const result = await client.query.usage(scope, queryDefinition);
       
-      this.logger.log(`Fetched cost data for subscription ${subscriptionId}`);
+      this.logger.log(`Cost data query completed. Result structure: ${JSON.stringify({ 
+        hasRows: !!result?.rows,
+        hasColumns: !!result?.columns,
+        rowCount: result?.rows?.length || 0,
+        columnCount: result?.columns?.length || 0
+      })}`);
+      
+      if (result?.rows && result.rows.length > 0) {
+        this.logger.debug(`First row sample: ${JSON.stringify(result.rows[0])}`);
+        this.logger.debug(`Columns: ${JSON.stringify(result.columns)}`);
+      } else {
+        this.logger.warn(`No cost data returned for subscription ${subscriptionId}`);
+      }
+      
       return result;
     } catch (error: any) {
-      this.logger.error(`Failed to fetch cost data: ${error.message}`);
+      this.logger.error(`Failed to fetch legacy cost data for subscription ${subscriptionId}: ${error.message}`);
+      if (error.response) {
+        this.logger.error(`API Response: ${JSON.stringify(error.response)}`);
+      }
       throw error;
     }
   }
